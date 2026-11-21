@@ -27,6 +27,20 @@ function voiceSettings() {
   };
 }
 
+// Finished audio by voice + settings + text. Demo lines and common replies repeat,
+// so a hit plays instantly and costs no ElevenLabs characters. Oldest evicted first.
+const cache = new Map<string, Buffer>();
+const MAX_CACHED = 200;
+
+function cacheSet(key: string, audio: Buffer) {
+  cache.delete(key);
+  cache.set(key, audio);
+  for (const oldest of cache.keys()) {
+    if (cache.size <= MAX_CACHED) break;
+    cache.delete(oldest);
+  }
+}
+
 export const speakRouter = Router();
 
 speakRouter.post("/", async (req, res) => {
@@ -47,6 +61,22 @@ speakRouter.post("/", async (req, res) => {
     return;
   }
 
+  const body = {
+    text: text.trim(),
+    model_id: process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL_ID,
+    voice_settings: voiceSettings(),
+  };
+  const cacheKey = JSON.stringify([voiceId, body]);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    cacheSet(cacheKey, cached); // mark as recently used
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Speak-Cache", "hit");
+    res.end(cached);
+    return;
+  }
+
   // Stop paying for synthesis if the browser goes away mid-stream.
   const abort = new AbortController();
   res.on("close", () => abort.abort());
@@ -61,11 +91,7 @@ speakRouter.post("/", async (req, res) => {
           "Content-Type": "application/json",
           Accept: "audio/mpeg",
         },
-        body: JSON.stringify({
-          text: text.trim(),
-          model_id: process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL_ID,
-          voice_settings: voiceSettings(),
-        }),
+        body: JSON.stringify(body),
         signal: abort.signal,
       },
     );
@@ -79,7 +105,15 @@ speakRouter.post("/", async (req, res) => {
 
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
-    Readable.fromWeb(upstream.body as WebReadableStream).pipe(res);
+    res.setHeader("X-Speak-Cache", "miss");
+    const audio = Readable.fromWeb(upstream.body as WebReadableStream);
+    const chunks: Buffer[] = [];
+    audio.on("data", (chunk: Buffer) => chunks.push(chunk));
+    // Only cache complete audio, never a stream the browser abandoned.
+    audio.on("end", () => {
+      if (!abort.signal.aborted) cacheSet(cacheKey, Buffer.concat(chunks));
+    });
+    audio.pipe(res);
   } catch (err) {
     if (abort.signal.aborted) return;
     console.error("speak failed:", err);

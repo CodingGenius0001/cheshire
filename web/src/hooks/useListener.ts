@@ -108,7 +108,15 @@ export function useListener(lang = "en-US"): Listener {
     rec.interimResults = true;
     rec.lang = lang;
 
+    // Consecutive service failures; slows restarts so a dropped connection or
+    // unplugged mic doesn't spin in a tight restart loop.
+    let failures = 0;
+
     rec.onresult = (e) => {
+      if (failures) {
+        failures = 0;
+        setError(null);
+      }
       let pending = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
@@ -127,6 +135,7 @@ export function useListener(lang = "en-US"): Listener {
       // "no-speech" and "aborted" are routine; onend restarts if still wanted.
       if (e.error === "no-speech" || e.error === "aborted") return;
       setError(e.error);
+      if (e.error === "network" || e.error === "audio-capture") failures++;
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         wantListeningRef.current = false;
       }
@@ -136,17 +145,22 @@ export function useListener(lang = "en-US"): Listener {
       // A newer session replaced this one (stop then start); leave its state alone.
       if (recognitionRef.current !== rec) return;
       setInterim(phraseRef.current);
-      if (wantListeningRef.current) {
+      const finish = () => {
+        recognitionRef.current = null;
+        wantListeningRef.current = false;
+        setListening(false);
+      };
+      if (!wantListeningRef.current) return finish();
+      const delay = failures ? Math.min(500 * 2 ** (failures - 1), 5000) : 0;
+      setTimeout(() => {
+        if (recognitionRef.current !== rec) return;
+        if (!wantListeningRef.current) return finish();
         try {
           rec.start();
-          return;
         } catch {
-          // fall through and stop
+          finish();
         }
-      }
-      recognitionRef.current = null;
-      wantListeningRef.current = false;
-      setListening(false);
+      }, delay);
     };
 
     recognitionRef.current = rec;
