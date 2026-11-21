@@ -4,6 +4,9 @@
  * Each partner line has to make sense whichever reply the user picked before it,
  * so keep them neutral. `replies` are only shown if /api/replies fails, so the
  * demo keeps going even with no network or API key.
+ *
+ * Keep each step's three replies genuinely different answers (yes / no / something
+ * else), never three ways of saying the same thing.
  */
 export interface DemoStep {
   partner: string;
@@ -39,8 +42,8 @@ export const DEMO_SCRIPT: DemoStep[] = [
     partner: "Got it. When I'm back, shall we make a plan for the weekend?",
     replies: [
       "I'd love that. Let's do something outside if it's sunny.",
-      "Sure, but let's keep it relaxed this time.",
-      'Yes! Maybe we could invite a few friends over.',
+      "Actually, I'd rather keep this weekend quiet and rest.",
+      "Can we decide later? I'm not sure how I'll feel.",
     ],
   },
 ];

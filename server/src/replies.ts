@@ -37,7 +37,10 @@ Write every reply in the first person, as the user, in a natural spoken register
 
 Keep each reply under 15 words. Short is kind here: the user is choosing quickly and the partner is waiting.
 
-The three replies must differ in intent, not just in wording, so the user has a real choice. Usually that means one that agrees or says yes, one that declines or steers somewhere else, and one that asks a question back. If the conversation calls for a different spread (for example the partner asked an open question), pick three clearly different answers.
+The three replies must be different answers, not three wordings of one answer, so the user can say what they actually mean, including no. Check: if the user could say two of the replies one after the other without contradicting themselves, those two are too similar; replace one.
+- When the partner asks a yes/no question, offers something, or proposes a plan: one reply accepts, one declines or disagrees, and one does something else (not now, a condition, a different suggestion, or a question back).
+- When the partner asks an open question: three answers that pick different options or point in different directions, at least one of them less positive than the others.
+Don't let every reply be upbeat. The user's real answer is often "no", "not today", or "I'm tired", and they need to be able to say it.
 
 Only use facts about the user that appear in their profile below or that the user said earlier in the conversation. Never invent names, plans, preferences, feelings, or history for them. When a good reply would need a fact you don't have, write one that doesn't need it, or ask the partner instead.`;
 
@@ -65,7 +68,7 @@ const REPLIES_SCHEMA = {
     replies: {
       type: "array",
       items: { type: "string" },
-      description: "Exactly three replies, each different in intent.",
+      description: "Exactly three replies that give different answers (for example yes / no / something else).",
     },
   },
   required: ["replies"],
