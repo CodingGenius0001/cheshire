@@ -8,6 +8,25 @@ interface ReplyTilesProps {
 
 const SKELETON_COUNT = 3;
 
+/** Each reply is a card from the Queen of Hearts' deck. */
+const SUITS = [
+  { glyph: '♥', color: 'red' },
+  { glyph: '♠', color: 'black' },
+  { glyph: '♦', color: 'red' },
+  { glyph: '♣', color: 'black' },
+] as const;
+const suitOf = (i: number) => SUITS[i % SUITS.length];
+
+/** Card corner index ("1♥"). Decorative: the option number is read out by the sr-only label. */
+function CardPip({ index, corner }: { index: number; corner: 'top' | 'bottom' }) {
+  return (
+    <span className={`card-pip card-pip-${corner}`} aria-hidden>
+      <span className="card-pip-rank">{index + 1}</span>
+      <span className="card-pip-suit">{suitOf(index).glyph}</span>
+    </span>
+  );
+}
+
 /**
  * The three reply options. Tilt your head to move the highlight, hold a blink to speak it.
  * Speaking is handled by App.tsx, which listens for the "cheshire:select" choose event
@@ -33,16 +52,22 @@ export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
 
       {loading ? (
         <ol className="tile-list" aria-busy="true" aria-label="Loading replies">
+          {/* Face-down cards while the deck is shuffled. */}
           {Array.from({ length: SKELETON_COUNT }, (_, i) => (
-            <li key={i} className="tile tile-skeleton">
-              <span className="tile-number">{i + 1}</span>
-              <span className="skeleton-line" />
-              <span className="skeleton-line skeleton-line-short" />
+            <li key={i} className="tile tile-skeleton card-back">
+              <span className="card-back-mark" aria-hidden>
+                ♥ ♠ ♦ ♣
+              </span>
             </li>
           ))}
         </ol>
       ) : replies.length === 0 ? (
-        <p className="tiles-empty">Replies will appear here when someone speaks to you.</p>
+        <p className="tiles-empty">
+          <span className="tiles-empty-suits" aria-hidden>
+            ♥ ♠ ♦ ♣
+          </span>
+          Replies will appear here when someone speaks to you.
+        </p>
       ) : (
         <ol className="tile-list" aria-label="Reply options">
           {replies.map((reply, i) => {
@@ -51,13 +76,15 @@ export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
               <li key={`${i}-${reply}`}>
                 <button
                   type="button"
-                  className={`tile ${active ? 'tile-active' : ''}`}
+                  className={`tile card-${suitOf(i).color} ${active ? 'tile-active' : ''}`}
                   aria-current={active ? 'true' : undefined}
                   onClick={() => chooseByClick(i)}
                 >
-                  <span className="tile-number">{i + 1}</span>
+                  <CardPip index={i} corner="top" />
+                  <span className="sr-only">Option {i + 1}: </span>
                   <span className="tile-text">{reply}</span>
                   {active && <span className="tile-hint">Hold a blink to say this</span>}
+                  <CardPip index={i} corner="bottom" />
                 </button>
               </li>
             );
