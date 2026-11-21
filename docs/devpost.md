@@ -10,7 +10,7 @@ BEFORE SUBMITTING (delete this block):
 
 **Reply in your own voice with a blink.**
 
-Cheshire listens to the person you're talking to, suggests three full replies, and lets you pick one with a head tilt and a blink. It then speaks your choice out loud in a clone of your own voice.
+Cheshire listens to the person you're talking to, suggests three full replies, and lets you pick one with a head tilt and a blink. It then speaks your choice out loud in your own voice, cloned with ElevenLabs, or in a natural stock voice if you haven't recorded one.
 
 🎥 Demo video: _[link]_
 
@@ -32,7 +32,7 @@ We wanted conversation to feel like conversation again: fast enough to keep up, 
    - Tilting your head left or right (past 15° for 300 ms) moves the highlight between the three replies.
    - Holding a blink for 400 ms speaks the highlighted reply. A normal blink is too short to trigger it, so the user can blink naturally while reading.
    - Carers can also click a tile with a mouse or touch.
-4. **Speak.** The chosen reply is spoken through ElevenLabs' low-latency Flash model in a clone of the user's voice. Audio plays as it streams in, so speech starts before synthesis finishes. If the voice service is unreachable, Cheshire falls back to the browser's built-in voice, so the user is never left silent. The mic pauses while Cheshire speaks so it doesn't transcribe itself.
+4. **Speak.** The chosen reply is spoken through ElevenLabs' low-latency Flash model, in a clone of the user's voice when one is set up and a natural stock voice otherwise. Our demo uses a stock voice: ElevenLabs' voice cloning needs a paid plan, and we built this on the free one. Audio plays as it streams in, so speech starts before synthesis finishes. If the voice service is unreachable, Cheshire falls back to the browser's built-in voice, so the user is never left silent. The mic pauses while Cheshire speaks so it doesn't transcribe itself.
 
 A live metrics panel shows keystroke savings, replies per minute, and how long each stage takes: partner stops → replies ready → user chooses → voice starts.
 
@@ -73,4 +73,4 @@ So even in the worst case, picking the third suggestion takes 3 inputs instead o
 
 ## Built with
 
-TypeScript · React 19 · Vite · Express · Web Speech API · MediaPipe Tasks Vision (Face Landmarker) · Claude Opus 5.5 (Anthropic API, structured outputs) · ElevenLabs (Flash v2.5 streaming TTS, voice cloning) · Media Source Extensions
+TypeScript · React 19 · Vite · Express · Web Speech API · MediaPipe Tasks Vision (Face Landmarker) · Claude Opus 5.5 (Anthropic API, structured outputs) · ElevenLabs (Flash v2.5 streaming TTS) · Media Source Extensions
