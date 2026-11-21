@@ -1,97 +1,160 @@
+/*
+ * Reply engine: POST /api/replies
+ *   body { history: { speaker, text }[], profile?, partial? } -> { replies: [string, string, string] }
+ *
+ * Mount in index.ts:  app.use("/api/replies", repliesRouter);
+ *
+ * Env (read per request, so dotenv loading order doesn't matter):
+ *   ANTHROPIC_API_KEY
+ *   REPLIES_MODEL      default claude-opus-5-5 (switch: claude-haiku-5-5)
+ *   REPLIES_MAX_TURNS  default 10 (2 PM fallback: 4)
+ */
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { Router } from "express";
-import { z } from "zod";
-import type { RepliesRequest, RepliesResponse } from "../../shared/types";
+import { Router, type Request, type Response } from "express";
+import type { RepliesRequest as SharedRepliesRequest, RepliesResponse } from "../../shared/types";
 
-const MODEL = "claude-opus-5-5";
-/** Only the most recent turns matter for a reply; keeps requests small and fast. */
-const MAX_TURNS = 20;
-const MAX_TURN_CHARS = 1000;
+/** Shared request plus two optional fields the reply engine understands. */
+export interface RepliesRequest extends SharedRepliesRequest {
+  /** Facts about the user (name, family, likes, ...). Any JSON shape; shown to the model as-is. */
+  profile?: unknown;
+  /** The word the user is typing right now, if any. */
+  partial?: string;
+}
 
-const SYSTEM_PROMPT = `You write reply options for a person who cannot speak and communicates with an AAC device. \
-Someone (the "partner") is talking to them face to face. They pick one of your replies with a blink, \
-and it is spoken aloud in their own voice.
+type HistoryTurn = RepliesRequest["history"][number];
 
-Write exactly 3 replies to the partner's latest message, as the user, in the first person.
-- Each reply is a complete, natural spoken sentence or two, under 20 words. No emoji, no stage directions.
-- Make the three meaningfully different (for example: yes / no / something else, or agree / ask a question / change the subject), so the user can always find one close to what they mean.
-- Match the tone of the conversation. Sound like a real person, not an assistant.
-- Do not invent specific facts about the user's life (names, places, dates). Keep such replies general.`;
-
-const RepliesSchema = z.object({
-  replies: z.array(z.string()),
+const config = () => ({
+  model: process.env.REPLIES_MODEL || "claude-opus-5-5",
+  maxTurns: Number(process.env.REPLIES_MAX_TURNS) || 10,
 });
 
-// Created lazily so the server still boots (and /api/health still reports) without a key.
-let client: Anthropic | null = null;
+let client: Anthropic | undefined;
+const getClient = () => (client ??= new Anthropic());
 
-export const repliesRouter = Router();
+const SYSTEM_PROMPT = `You are the voice of a person who is losing their ability to speak. They are in a live, spoken conversation. You hear what the other person (the partner) says, and you write three replies the user could say next. The user picks one with a blink or a head tilt, and it is spoken aloud in their own voice, so each reply is something they say, not something said about them.
 
-repliesRouter.post("/", async (req, res) => {
-  const { history } = (req.body ?? {}) as Partial<RepliesRequest>;
-  if (!Array.isArray(history) || history.length === 0) {
-    res.status(400).json({ error: "body must be { history: { speaker, text }[] } with at least one turn" });
-    return;
+Write every reply in the first person, as the user, in a natural spoken register: the way a person actually talks, contractions included. No stage directions, emoji, quotation marks, or narration.
+
+Keep each reply under 15 words. Short is kind here: the user is choosing quickly and the partner is waiting.
+
+The three replies must differ in intent, not just in wording, so the user has a real choice. Usually that means one that agrees or says yes, one that declines or steers somewhere else, and one that asks a question back. If the conversation calls for a different spread (for example the partner asked an open question), pick three clearly different answers.
+
+Only use facts about the user that appear in their profile below or that the user said earlier in the conversation. Never invent names, plans, preferences, feelings, or history for them. When a good reply would need a fact you don't have, write one that doesn't need it, or ask the partner instead.`;
+
+function buildSystem(profile: unknown): string {
+  const empty =
+    profile === undefined || profile === null || (typeof profile === "object" && Object.keys(profile).length === 0);
+  const profileText = empty
+    ? "No profile was given. Do not assume anything about the user beyond the conversation."
+    : JSON.stringify(profile, null, 2);
+  return `${SYSTEM_PROMPT}\n\n<profile>\n${profileText}\n</profile>`;
+}
+
+function buildUserMessage(history: HistoryTurn[], partial: string | undefined): string {
+  const lines = history.map((t) => `${t.speaker === "user" ? "User" : "Partner"}: ${t.text}`);
+  let msg = `<conversation>\n${lines.join("\n")}\n</conversation>\n\nWrite the user's three possible next replies.`;
+  if (partial) {
+    msg += ` The user has started typing the word "${partial}". Every reply must start with that word or contain it.`;
   }
+  return msg;
+}
 
-  const lines = history
-    .filter((t) => t && (t.speaker === "partner" || t.speaker === "user") && typeof t.text === "string" && t.text.trim())
-    .slice(-MAX_TURNS)
-    .map((t) => `${t.speaker === "partner" ? "Partner" : "User"}: ${t.text.trim().slice(0, MAX_TURN_CHARS)}`);
-  if (!lines.length) {
-    res.status(400).json({ error: "history has no usable turns" });
-    return;
+const REPLIES_SCHEMA = {
+  type: "object",
+  properties: {
+    replies: {
+      type: "array",
+      items: { type: "string" },
+      description: "Exactly three replies, each different in intent.",
+    },
+  },
+  required: ["replies"],
+  additionalProperties: false,
+};
+
+export class RepliesError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
   }
+}
 
+function parseRequest(body: unknown): RepliesRequest {
+  const b = body as Partial<RepliesRequest> | undefined;
+  if (!b || !Array.isArray(b.history)) throw new RepliesError("body.history must be an array", 400);
+  const history: HistoryTurn[] = [];
+  for (const t of b.history) {
+    if (!t || typeof t.text !== "string" || (t.speaker !== "user" && t.speaker !== "partner")) {
+      throw new RepliesError('each history turn needs speaker "user" | "partner" and text', 400);
+    }
+    if (t.text.trim()) history.push({ speaker: t.speaker, text: t.text.trim() });
+  }
+  if (history.length === 0) throw new RepliesError("history has no non-empty turns", 400);
+  const partial = typeof b.partial === "string" && b.partial.trim() ? b.partial.trim() : undefined;
+  return { history, profile: b.profile, partial };
+}
+
+/** Core call, separate from Express so scripts can use it directly. `signal` cancels the API call. */
+export async function generateReplies(body: unknown, signal?: AbortSignal): Promise<RepliesResponse> {
+  const { history, profile, partial } = parseRequest(body);
+  const { model, maxTurns } = config();
+  const recent = history.slice(-maxTurns);
+
+  // Opus 5.5: thinking stays on (disabling it is a 400); effort "low" keeps it short.
+  // Server-side fallback re-runs on another model if a safety classifier misfires
+  // (medical conversation is where false positives happen). Haiku doesn't take it.
+  const useFallbacks = model === "claude-opus-5-5";
+  const response = await getClient().beta.messages.create({
+    model,
+    max_tokens: 2048,
+    output_config: {
+      effort: "low",
+      format: { type: "json_schema", schema: REPLIES_SCHEMA },
+    },
+    ...(useFallbacks ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+    system: buildSystem(profile),
+    messages: [{ role: "user", content: buildUserMessage(recent, partial) }],
+  }, { signal });
+
+  if (response.stop_reason === "refusal") {
+    throw new RepliesError(`model declined (${response.stop_details?.category ?? "unknown"})`, 502);
+  }
+  if (response.stop_reason === "max_tokens") {
+    throw new RepliesError("model ran out of tokens before finishing", 502);
+  }
+  const text = response.content.find((b) => b.type === "text");
+  if (!text || text.type !== "text") throw new RepliesError("model returned no text", 502);
+
+  let parsed: RepliesResponse;
+  try {
+    parsed = JSON.parse(text.text) as RepliesResponse;
+  } catch {
+    throw new RepliesError("model returned invalid JSON", 502);
+  }
+  const replies = (parsed.replies ?? []).map((r) => r.trim()).filter(Boolean).slice(0, 3);
+  if (replies.length < 3) throw new RepliesError(`model returned ${replies.length} replies`, 502);
+  return { replies };
+}
+
+export async function repliesHandler(req: Request, res: Response): Promise<void> {
+  const started = Date.now();
   // Stop paying for generation if the browser gives up (App aborts when a newer partner turn arrives).
   const abort = new AbortController();
   res.on("close", () => abort.abort());
-
   try {
-    client ??= new Anthropic();
-    const response = await client.beta.messages.parse(
-      {
-        model: MODEL,
-        max_tokens: 2048,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        // Lowest effort: short replies don't need deep reasoning, and latency is what the user feels.
-        output_config: { effort: "low", format: betaZodOutputFormat(RepliesSchema) },
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `<conversation>\n${lines.join("\n")}\n</conversation>\n\nWrite the 3 reply options.`,
-          },
-        ],
-      },
-      { signal: abort.signal },
-    );
-
-    if (response.stop_reason === "refusal") {
-      res.status(502).json({ error: "model declined to suggest replies" });
-      return;
-    }
-    const parsed = response.parsed_output;
-    if (!parsed) {
-      res.status(502).json({ error: `no replies in model output (stop_reason: ${response.stop_reason})` });
-      return;
-    }
-    const body: RepliesResponse = { replies: parsed.replies.map((r) => r.trim()).filter(Boolean).slice(0, 3) };
-    res.json(body);
+    const result = await generateReplies(req.body, abort.signal);
+    console.log(`[replies] ${Date.now() - started} ms (${config().model})`);
+    res.json(result);
   } catch (err) {
     if (abort.signal.aborted) return;
-    console.error("replies failed:", err);
-    if (err instanceof Anthropic.AuthenticationError) {
-      res.status(500).json({ error: "Anthropic credentials missing or invalid (set ANTHROPIC_API_KEY in .env)" });
-    } else if (err instanceof Anthropic.RateLimitError) {
-      res.status(429).json({ error: "rate limited by Anthropic, try again" });
-    } else if (err instanceof Anthropic.APIError) {
-      res.status(502).json({ error: `Anthropic error ${err.status ?? ""}`.trim() });
-    } else {
-      // e.g. no credentials configured at all: the SDK throws before sending anything.
-      res.status(500).json({ error: `failed to get replies: ${err instanceof Error ? err.message : String(err)}` });
-    }
+    const status = err instanceof RepliesError ? err.status : err instanceof Anthropic.APIError ? 502 : 500;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[replies] failed after ${Date.now() - started} ms: ${message}`);
+    res.status(status).json({ error: message });
   }
-});
+}
+
+export const repliesRouter = Router();
+repliesRouter.post("/", repliesHandler);
