@@ -25,6 +25,9 @@ export type BlinkTiltStatus = 'idle' | 'loading' | 'running' | 'error';
 export interface BlinkTiltDebug extends GestureState {
   eyeBlinkLeft: number;
   eyeBlinkRight: number;
+  /** Highest recent score per eye, decaying slowly, so a blink's top value can be read off. */
+  eyeBlinkLeftPeak: number;
+  eyeBlinkRightPeak: number;
   rollDeg: number;
   fps: number;
   /** Top blendshapes this frame, highest first. */
@@ -128,6 +131,10 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
     let frameCount = 0;
     let fpsWindowStart = performance.now();
     let fps = 0;
+    let peakL = 0;
+    let peakR = 0;
+    let lastFrameT = performance.now();
+    const PEAK_DECAY_PER_SEC = 0.15;
 
     const fire = (type: SelectionEvent, at: number) => {
       const list = repliesRef.current;
@@ -173,6 +180,11 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
       const event = detector.update({ t: now, blinkLeft: blinkL, blinkRight: blinkR, rollDeg: roll });
       if (event) fire(event, now);
 
+      const decay = ((now - lastFrameT) / 1000) * PEAK_DECAY_PER_SEC;
+      lastFrameT = now;
+      peakL = Math.max(blinkL ?? 0, peakL - decay);
+      peakR = Math.max(blinkR ?? 0, peakR - decay);
+
       frameCount++;
       if (now - fpsWindowStart >= 1000) {
         fps = (frameCount * 1000) / (now - fpsWindowStart);
@@ -186,6 +198,8 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
           ...detector.state,
           eyeBlinkLeft: blinkL ?? 0,
           eyeBlinkRight: blinkR ?? 0,
+          eyeBlinkLeftPeak: peakL,
+          eyeBlinkRightPeak: peakR,
           rollDeg: roll ?? 0,
           fps,
           topBlendshapes: shapes

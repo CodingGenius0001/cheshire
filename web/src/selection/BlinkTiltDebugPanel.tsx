@@ -42,8 +42,18 @@ export function BlinkTiltDebugPanel(props: UseBlinkTiltResult) {
         </div>
       </div>
 
-      <Bar label="eyeBlinkLeft" value={debug?.eyeBlinkLeft ?? 0} threshold={T.BLINK_THRESHOLD} />
-      <Bar label="eyeBlinkRight" value={debug?.eyeBlinkRight ?? 0} threshold={T.BLINK_THRESHOLD} />
+      <Bar
+        label="eyeBlinkLeft"
+        value={debug?.eyeBlinkLeft ?? 0}
+        threshold={T.BLINK_THRESHOLD}
+        peak={debug?.eyeBlinkLeftPeak}
+      />
+      <Bar
+        label="eyeBlinkRight"
+        value={debug?.eyeBlinkRight ?? 0}
+        threshold={T.BLINK_THRESHOLD}
+        peak={debug?.eyeBlinkRightPeak}
+      />
       <Bar label={`blink hold (${T.BLINK_HOLD_MS}ms)`} value={debug?.blinkProgress ?? 0} accent="#7ee787" />
 
       <div style={S.label}>
@@ -90,18 +100,24 @@ function Bar({
   value,
   threshold,
   accent,
+  peak,
 }: {
   label: string;
   value: number;
   threshold?: number;
   accent?: string;
+  /** Recent high-water mark, drawn as a white tick. */
+  peak?: number;
 }) {
   const over = threshold !== undefined && value > threshold;
   return (
     <div style={{ marginTop: 4 }}>
       <div style={S.label}>
         <span>{label}</span>
-        <span>{value.toFixed(2)}</span>
+        <span>
+          {value.toFixed(2)}
+          {peak !== undefined && <span style={S.muted}> · peak {peak.toFixed(2)}</span>}
+        </span>
       </div>
       <div style={S.track}>
         <div
@@ -112,6 +128,9 @@ function Bar({
           }}
         />
         {threshold !== undefined && <div style={{ ...S.tick, left: `${threshold * 100}%` }} />}
+        {peak !== undefined && (
+          <div style={{ ...S.tick, left: `${Math.min(1, peak) * 100}%`, background: '#e6edf3', opacity: 0.8 }} />
+        )}
       </div>
     </div>
   );

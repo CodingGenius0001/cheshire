@@ -5,7 +5,7 @@
  */
 export const SELECTION_TUNING = {
   /** Both eyeBlinkLeft and eyeBlinkRight must be above this (0..1) to count as "eyes closed". */
-  BLINK_THRESHOLD: 0.5,
+  BLINK_THRESHOLD: 0.3,
   /** Eyes must stay closed this long to count as a deliberate blink. Normal blinks are ~100-150 ms. */
   BLINK_HOLD_MS: 400,
 
