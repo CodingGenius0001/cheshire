@@ -11,9 +11,9 @@ import './styles/app.css';
 /*
  * TEAM CONTRACTS
  *
- *  useListener()  (Josh)   → shared Listener: `turns` is the whole conversation (partner speech + replies we add
+ *  useListener()  (Jash)   → shared Listener: `turns` is the whole conversation (partner speech + replies we add
  *                            with addUserTurn), `interim`, `listening`, `start`/`stop`, `supported`, `error`.
- *  speak(text, onStart)    (Josh, web/src/lib/speak.ts) → streams POST /api/speak and resolves when playback ends.
+ *  speak(text, onStart)    (Jash, web/src/lib/speak.ts) → streams POST /api/speak and resolves when playback ends.
  *  <ReplyTiles>   (Vivek)  → props { replies: string[]; loading?: boolean }
  *  "cheshire:select"       → CustomEvent on `window`, detail { type: 'choose'; index: number; text?: string }
  *  POST /api/replies       → RepliesRequest → RepliesResponse (shared/types.ts, server/src/replies.ts)
