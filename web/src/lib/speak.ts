@@ -2,21 +2,11 @@ import type { SpeakRequest } from "../../../shared/types";
 
 let current: HTMLAudioElement | null = null;
 
-/** Stop whatever speak() is currently playing. */
-export function stopSpeaking() {
-  if (!current) return;
-  current.pause();
-  current.src = "";
-  current = null;
-}
+// Audio fetched ahead of time by prefetchSpeech(), keyed by text.
+const prefetched = new Map<string, Promise<Blob>>();
+const MAX_PREFETCHED = 6;
 
-/**
- * POST /api/speak and play the result in the user's voice. Plays as the stream
- * arrives (MediaSource) where supported, otherwise after the full download.
- * Resolves when playback ends. `onStart` fires once, when sound actually begins.
- */
-export async function speak(text: string, onStart?: () => void): Promise<void> {
-  stopSpeaking();
+async function fetchSpeech(text: string): Promise<Response> {
   const res = await fetch("/api/speak", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -26,6 +16,48 @@ export async function speak(text: string, onStart?: () => void): Promise<void> {
     const detail = await res.text().catch(() => "");
     throw new Error(`speak failed (${res.status}): ${detail}`);
   }
+  return res;
+}
+
+/**
+ * Start fetching audio for texts that may be spoken soon (e.g. the 3 reply
+ * options), so speak() can play the chosen one with no network wait.
+ * Costs ElevenLabs characters for every option, picked or not.
+ */
+export function prefetchSpeech(texts: string[]) {
+  for (const text of texts) {
+    if (!text.trim() || prefetched.has(text)) continue;
+    const blob = fetchSpeech(text).then((res) => res.blob());
+    blob.catch(() => prefetched.delete(text));
+    prefetched.set(text, blob);
+  }
+  for (const key of prefetched.keys()) {
+    if (prefetched.size <= MAX_PREFETCHED) break;
+    prefetched.delete(key);
+  }
+}
+
+/** Stop whatever speak() is currently playing. */
+export function stopSpeaking() {
+  if (!current) return;
+  current.pause();
+  current.src = "";
+  current = null;
+}
+
+/**
+ * POST /api/speak and play the result in the user's voice. Uses prefetched
+ * audio when available; otherwise plays as the stream arrives (MediaSource)
+ * where supported, or after the full download.
+ * Resolves when playback ends. `onStart` fires once, when sound actually begins.
+ */
+export async function speak(text: string, onStart?: () => void): Promise<void> {
+  stopSpeaking();
+
+  const cached = prefetched.get(text);
+  prefetched.delete(text);
+  const cachedBlob = cached ? await cached.catch(() => null) : null;
+  const res = cachedBlob ? null : await fetchSpeech(text);
 
   const audio = new Audio();
   current = audio;
@@ -43,7 +75,7 @@ export async function speak(text: string, onStart?: () => void): Promise<void> {
   });
   ended.catch(() => {}); // rejections are rethrown by the awaits below
 
-  if (typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg")) {
+  if (res?.body && typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg")) {
     const mediaSource = new MediaSource();
     audio.src = URL.createObjectURL(mediaSource);
     await new Promise((r) => mediaSource.addEventListener("sourceopen", r, { once: true }));
@@ -73,7 +105,7 @@ export async function speak(text: string, onStart?: () => void): Promise<void> {
     if (mediaSource.readyState === "open") mediaSource.endOfStream();
     if (playError) throw playError;
   } else {
-    audio.src = URL.createObjectURL(await res.blob());
+    audio.src = URL.createObjectURL(cachedBlob ?? (await res!.blob()));
     await audio.play();
   }
 

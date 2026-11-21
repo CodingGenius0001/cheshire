@@ -38,6 +38,11 @@ function getRecognitionCtor(): SpeechRecognitionCtor | undefined {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
+// Chrome often finalizes one sentence in pieces ("Do you want" / "to get lunch?").
+// Finished pieces are held this long after speech stops, then emitted as one turn,
+// so replies are generated for the whole thought, not half of it.
+const PHRASE_GAP_MS = 800;
+
 function makeTurn(speaker: Speaker, text: string, source: Turn["source"]): Turn {
   return { id: crypto.randomUUID(), speaker, text, timestamp: Date.now(), source };
 }
@@ -76,6 +81,18 @@ export function useListener(lang = "en-US"): Listener {
     setTurns((prev) => [...prev, makeTurn(speaker, clean, source)]);
   }, []);
 
+  // Finalized partner speech not yet emitted as a turn (see PHRASE_GAP_MS).
+  const phraseRef = useRef("");
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const flushPhrase = useCallback(() => {
+    clearTimeout(flushTimerRef.current);
+    const text = phraseRef.current;
+    phraseRef.current = "";
+    setInterim("");
+    addTurn("partner", text, "speech");
+  }, [addTurn]);
+
   const start = useCallback(() => {
     const Ctor = getRecognitionCtor();
     if (!Ctor) {
@@ -95,10 +112,15 @@ export function useListener(lang = "en-US"): Listener {
       let pending = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const result = e.results[i];
-        if (result.isFinal) addTurn("partner", result[0].transcript, "speech");
+        if (result.isFinal) phraseRef.current = `${phraseRef.current} ${result[0].transcript.trim()}`.trim();
         else pending += result[0].transcript;
       }
-      setInterim(pending);
+      setInterim(`${phraseRef.current} ${pending.trim()}`.trim());
+      // Still talking: wait for the next final. Quiet: emit after the gap.
+      clearTimeout(flushTimerRef.current);
+      if (!pending.trim() && phraseRef.current) {
+        flushTimerRef.current = setTimeout(flushPhrase, PHRASE_GAP_MS);
+      }
     };
 
     rec.onerror = (e) => {
@@ -113,7 +135,7 @@ export function useListener(lang = "en-US"): Listener {
     rec.onend = () => {
       // A newer session replaced this one (stop then start); leave its state alone.
       if (recognitionRef.current !== rec) return;
-      setInterim("");
+      setInterim(phraseRef.current);
       if (wantListeningRef.current) {
         try {
           rec.start();
@@ -136,25 +158,40 @@ export function useListener(lang = "en-US"): Listener {
       recognitionRef.current = null;
       setError(String(err));
     }
-  }, [addTurn, lang]);
+  }, [flushPhrase, lang]);
 
   const stop = useCallback(() => {
     wantListeningRef.current = false;
     // stop() (not abort()) lets Chrome deliver the final result for the phrase in progress.
     recognitionRef.current?.stop();
+    flushPhrase();
     setListening(false);
-  }, []);
+  }, [flushPhrase]);
 
   const toggle = useCallback(() => {
     if (wantListeningRef.current) stop();
     else start();
   }, [start, stop]);
 
-  const addUserTurn = useCallback((text: string) => addTurn("user", text, "reply"), [addTurn]);
-  const addPartnerTurn = useCallback((text: string) => addTurn("partner", text, "typed"), [addTurn]);
+  // Flush first so held partner speech stays ahead of the new turn.
+  const addUserTurn = useCallback(
+    (text: string) => {
+      flushPhrase();
+      addTurn("user", text, "reply");
+    },
+    [addTurn, flushPhrase],
+  );
+  const addPartnerTurn = useCallback(
+    (text: string) => {
+      flushPhrase();
+      addTurn("partner", text, "typed");
+    },
+    [addTurn, flushPhrase],
+  );
 
   useEffect(
     () => () => {
+      clearTimeout(flushTimerRef.current);
       wantListeningRef.current = false;
       recognitionRef.current?.abort();
       recognitionRef.current = null;

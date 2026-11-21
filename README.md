@@ -40,7 +40,7 @@ const { turns, listening, start, stop, addUserTurn, toggle, addPartnerTurn, inte
 ```
 
 - `start`/`stop`/`toggle`: push-to-listen. Chrome ends recognition after silence; the hook restarts it until `stop()` is called.
-- Each finalized phrase becomes a `Turn` with `speaker: "partner"`. `interim` holds the words recognized so far.
+- Partner speech becomes a `Turn` with `speaker: "partner"` once they pause for 0.8s, so a sentence Chrome splits into pieces arrives as one turn. `interim` holds the words recognized so far.
 - `addUserTurn(text)`: record the reply the user picked.
 - `addPartnerTurn(text)`: typed fallback when the room is too noisy for recognition.
 
@@ -51,11 +51,15 @@ import { speak } from "./lib/speak";
 await speak("Thanks, I'd love to.");  // resolves when playback ends
 ```
 
+`prefetchSpeech(replies)` (same file) fetches audio for all reply options as soon as they're shown, so the picked one plays instantly. It spends ElevenLabs characters on all 3, so leave it out if credits run low.
+
 ## Voice
 
 1. ElevenLabs dashboard -> Voices -> Add voice -> Instant Voice Clone. Upload the 1 to 2 minute recording (one speaker, little background noise).
 2. Copy the voice ID into `ELEVENLABS_VOICE_ID` in `.env`.
 3. If cloning isn't on our plan, use any stock voice's ID from the Voice Library instead.
+4. To improve the clone, add more samples to the same voice in the dashboard (the ID doesn't change). Clean audio matters more than length: one speaker, quiet room, natural tone.
+5. Fine-tune with the optional `ELEVENLABS_*` settings in `.env.example`, then restart the server.
 
 ## Demo mode
 

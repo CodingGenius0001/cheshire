@@ -5,9 +5,27 @@ import type { SpeakRequest } from "../../shared/types";
 
 // Flash is ElevenLabs' lowest-latency model; the /stream endpoint returns audio
 // as it is generated, so the browser can start playing before synthesis ends.
-const MODEL_ID = "eleven_flash_v2_5";
+// ELEVENLABS_MODEL_ID=eleven_multilingual_v2 sounds closer to the clone but is slower.
+const DEFAULT_MODEL_ID = "eleven_flash_v2_5";
 const OUTPUT_FORMAT = "mp3_44100_128";
 const MAX_CHARS = 1000;
+
+function envNumber(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return process.env[name] && Number.isFinite(value) ? value : fallback;
+}
+
+// Tuned for a cloned voice: high similarity keeps it sounding like the user,
+// mid stability keeps it expressive without wandering. Override from .env.
+function voiceSettings() {
+  return {
+    stability: envNumber("ELEVENLABS_STABILITY", 0.5),
+    similarity_boost: envNumber("ELEVENLABS_SIMILARITY", 0.85),
+    style: 0,
+    use_speaker_boost: true,
+    speed: envNumber("ELEVENLABS_SPEED", 1),
+  };
+}
 
 export const speakRouter = Router();
 
@@ -43,7 +61,11 @@ speakRouter.post("/", async (req, res) => {
           "Content-Type": "application/json",
           Accept: "audio/mpeg",
         },
-        body: JSON.stringify({ text: text.trim(), model_id: MODEL_ID }),
+        body: JSON.stringify({
+          text: text.trim(),
+          model_id: process.env.ELEVENLABS_MODEL_ID || DEFAULT_MODEL_ID,
+          voice_settings: voiceSettings(),
+        }),
         signal: abort.signal,
       },
     );
