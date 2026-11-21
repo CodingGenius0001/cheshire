@@ -8,6 +8,8 @@ import { ReplyTiles } from './tiles/ReplyTiles';
 import { MetricsPanel } from './metrics/MetricsPanel';
 import { useMetrics } from './metrics/useMetrics';
 import './styles/app.css';
+import { CheshireCat, Grin, type Mood } from './theme/CheshireCat';
+import './theme/cheshire.css';
 
 /*
  * TEAM CONTRACTS
@@ -218,11 +220,23 @@ export default function App() {
             ? 'Microphone off'
             : 'Listening…';
 
+  // The Cheshire Cat in the header acts out the same state (see theme/cheshire.css).
+  const mood: Mood = speaking
+    ? 'speaking'
+    : loadingReplies
+      ? 'thinking'
+      : replies.length
+        ? 'choosing'
+        : demo.state.status === 'running' || listener.listening
+          ? 'listening'
+          : 'idle';
+
   return (
-    <div className="app">
+    <div className="app" data-mood={mood}>
       <header className="app-header">
         <h1 className="brand">
-          Cheshire<span className="brand-dot" aria-hidden>●</span>
+          Cheshire
+          <Grin className="brand-grin" />
         </h1>
         <div className="header-right">
           {demo.state.status === 'running' && (
@@ -235,6 +249,7 @@ export default function App() {
             {status}
           </div>
         </div>
+        <CheshireCat />
       </header>
 
       <main className="app-grid">
