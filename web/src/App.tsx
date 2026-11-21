@@ -91,7 +91,7 @@ async function speak(text: string, onStart: (usedFallback: boolean) => void): Pr
 export default function App() {
   const listener = useListener();
   const metrics = useMetrics();
-  const { partnerTurnEnded, repliesShown, chosen, voiceStarted } = metrics;
+  const { log } = metrics;
 
   const [transcript, setTranscript] = useState<Turn[]>([]);
   const [replies, setReplies] = useState<string[]>([]);
@@ -126,22 +126,25 @@ export default function App() {
 
     showReplies([]);
     setLoadingReplies(true);
+    log({ type: 'replies_requested' });
     try {
       const next = await fetchReplies(transcriptRef.current, controller.signal);
       if (controller.signal.aborted) return;
       showReplies(next);
-      repliesShown();
+      log({ type: 'replies_shown', count: next.length });
       setNotice(null);
     } catch (err) {
       if (controller.signal.aborted) return;
-      setNotice(err instanceof Error ? err.message : "Couldn't get replies");
+      const message = err instanceof Error ? err.message : "Couldn't get replies";
+      log({ type: 'replies_failed', message });
+      setNotice(message);
     } finally {
       if (replyAbort.current === controller) {
         replyAbort.current = null;
         setLoadingReplies(false);
       }
     }
-  }, [repliesShown, showReplies]);
+  }, [log, showReplies]);
 
   // New partner turns from the listener → add to transcript, ask for replies.
   useEffect(() => {
@@ -155,26 +158,26 @@ export default function App() {
     if (!fresh.length) return;
 
     appendTurns(fresh.map((text) => ({ speaker: 'partner' as const, text })));
-    partnerTurnEnded();
+    for (const text of fresh) log({ type: 'partner_turn', text });
     void requestReplies();
-  }, [listener.turns, appendTurns, partnerTurnEnded, requestReplies]);
+  }, [listener.turns, appendTurns, log, requestReplies]);
 
   const choose = useCallback(
     async (text: string) => {
       speakingRef.current = true;
       setSpeaking(true);
-      chosen(text);
+      log({ type: 'spoken', text });
       appendTurns([{ speaker: 'user', text }]);
       showReplies([]);
       try {
-        const mode = await speak(text, voiceStarted);
+        const mode = await speak(text, (fallback) => log({ type: 'voice_started', fallback }));
         setNotice(mode === 'fallback' ? 'Voice server unavailable, used browser voice' : null);
       } finally {
         speakingRef.current = false;
         setSpeaking(false);
       }
     },
-    [appendTurns, chosen, showReplies, voiceStarted],
+    [appendTurns, log, showReplies],
   );
 
   // Blink / head-tilt choice from the selection layer.
