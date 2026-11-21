@@ -43,6 +43,8 @@ export interface MetricsSummary {
 }
 
 const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Fn']);
+/** App shortcuts for the presenter (P = demo mode, D = camera debug), not communication input. */
+const CONTROL_KEYS = new Set(['p', 'd']);
 
 /** Replies/min divides by at least this much time, so one quick reply doesn't read as "30/min". */
 const MIN_RATE_WINDOW_MS = 60_000;
@@ -146,7 +148,7 @@ export function useMetrics() {
   // Every key press is an input the user had to make.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || MODIFIER_KEYS.has(e.key)) return;
+      if (e.repeat || MODIFIER_KEYS.has(e.key) || CONTROL_KEYS.has(e.key.toLowerCase())) return;
       log({ type: 'key', key: e.key });
     };
     window.addEventListener('keydown', onKey);

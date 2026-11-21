@@ -25,6 +25,7 @@ Open http://localhost:5173. Vite proxies `/api/*` to Express on :3001, so everyt
 shared/types.ts            shared contract (Turn, SpeakRequest, ...)
 server/src/index.ts        Express app; mount routes here
 server/src/speak.ts        POST /api/speak {text} -> audio/mpeg (ElevenLabs streaming, flash model)
+server/src/replies.ts      POST /api/replies {history} -> {replies: string[3]} (Claude Opus 5.5, low effort)
 web/src/hooks/useListener.ts   partner speech -> Turn[]
 web/src/lib/speak.ts       speak(text): calls /api/speak and plays the audio as it streams
 web/src/App.tsx            main UI
@@ -55,6 +56,10 @@ await speak("Thanks, I'd love to.");  // resolves when playback ends
 1. ElevenLabs dashboard -> Voices -> Add voice -> Instant Voice Clone. Upload the 1 to 2 minute recording (one speaker, little background noise).
 2. Copy the voice ID into `ELEVENLABS_VOICE_ID` in `.env`.
 3. If cloning isn't on our plan, use any stock voice's ID from the Voice Library instead.
+
+## Demo mode
+
+Press **P** on the main screen to play a scripted partner conversation (`web/src/demo/script.ts`) instead of using the mic. The first line arrives at once; each later line follows 1.5s after your reply finishes. Press P again to skip ahead, or after the end to replay. If `/api/replies` fails during the demo, each line's scripted replies are shown so the demo never stalls. P and D (camera debug) don't count toward keystroke savings.
 
 ## Noisy room
 

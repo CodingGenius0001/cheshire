@@ -1,28 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { RepliesRequest, RepliesResponse, Turn } from '../../shared/types';
 import { useListener } from './listener/useListener';
+import { speak } from './lib/speak';
+import { useDemoMode } from './demo/useDemoMode';
 import { ReplyTiles } from './tiles/ReplyTiles';
 import { MetricsPanel } from './metrics/MetricsPanel';
 import { useMetrics } from './metrics/useMetrics';
 import './styles/app.css';
 
 /*
- * ASSUMED TEAM CONTRACTS — check these against Josh's and Vivek's code:
+ * TEAM CONTRACTS
  *
- *  useListener()  (Josh)   → { turns: { id?: string; text: string }[]; interim?: string; listening?: boolean }
- *                            `turns` holds finished partner utterances and only grows.
+ *  useListener()  (Josh)   → shared Listener: `turns` is the whole conversation (partner speech + replies we add
+ *                            with addUserTurn), `interim`, `listening`, `start`/`stop`, `supported`, `error`.
+ *  speak(text, onStart)    (Josh, web/src/lib/speak.ts) → streams POST /api/speak and resolves when playback ends.
  *  <ReplyTiles>   (Vivek)  → props { replies: string[]; loading?: boolean }
- *  "cheshire:select"       → CustomEvent dispatched on `window`, detail { type: 'choose'; index: number; text?: string }
- *  POST /api/replies       → body { history: { speaker: 'partner' | 'user'; text: string }[] } → { replies: string[] }
- *  POST /api/speak         → body { text } → audio bytes (audio/mpeg, audio/wav, ...)
+ *  "cheshire:select"       → CustomEvent on `window`, detail { type: 'choose'; index: number; text?: string }
+ *  POST /api/replies       → RepliesRequest → RepliesResponse (shared/types.ts, server/src/replies.ts)
+ *  Demo mode (P key)       → web/src/demo: feeds scripted partner lines through addPartnerTurn.
  */
-
-type Speaker = 'partner' | 'user';
-
-interface Turn {
-  id: string;
-  speaker: Speaker;
-  text: string;
-}
 
 interface SelectDetail {
   type?: string;
@@ -31,48 +27,34 @@ interface SelectDetail {
 }
 
 async function fetchReplies(history: Turn[], signal: AbortSignal): Promise<string[]> {
+  const body: RepliesRequest = { history: history.map(({ speaker, text }) => ({ speaker, text })) };
   const res = await fetch('/api/replies', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ history: history.map(({ speaker, text }) => ({ speaker, text })) }),
+    body: JSON.stringify(body),
     signal,
   });
-  if (!res.ok) throw new Error(`Couldn't get replies (HTTP ${res.status})`);
-  const data = (await res.json()) as { replies?: unknown };
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(detail?.error ?? `Couldn't get replies (HTTP ${res.status})`);
+  }
+  const data = (await res.json()) as Partial<RepliesResponse>;
   if (!Array.isArray(data.replies)) throw new Error('Reply server sent no replies');
   return data.replies.filter((r): r is string => typeof r === 'string').slice(0, 3);
 }
 
 /**
- * Speak `text` in the user's cloned voice via /api/speak. If that fails before
- * any audio plays, fall back to the browser's built-in voice so a demo never goes silent.
+ * Speak `text` in the user's cloned voice. If that fails before any audio plays,
+ * fall back to the browser's built-in voice so a demo never goes silent.
  * `onStart` fires once, when sound actually begins.
  */
-async function speak(text: string, onStart: (usedFallback: boolean) => void): Promise<'voice' | 'fallback'> {
+async function speakWithFallback(text: string, onStart: (usedFallback: boolean) => void): Promise<'voice' | 'fallback'> {
   let started = false;
   try {
-    const res = await fetch('/api/speak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+    await speak(text, () => {
+      started = true;
+      onStart(false);
     });
-    if (!res.ok) throw new Error(`/api/speak HTTP ${res.status}`);
-    const url = URL.createObjectURL(await res.blob());
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const audio = new Audio(url);
-        audio.onplaying = () => {
-          if (started) return;
-          started = true;
-          onStart(false);
-        };
-        audio.onended = () => resolve();
-        audio.onerror = () => reject(new Error('Audio playback failed'));
-        audio.play().catch(reject);
-      });
-    } finally {
-      URL.revokeObjectURL(url);
-    }
     return 'voice';
   } catch (err) {
     if (started) return 'voice'; // it already spoke; don't say it twice
@@ -90,29 +72,25 @@ async function speak(text: string, onStart: (usedFallback: boolean) => void): Pr
 
 export default function App() {
   const listener = useListener();
+  const { turns, start: startListening, stop: stopListening, addUserTurn, addPartnerTurn } = listener;
   const metrics = useMetrics();
   const { log } = metrics;
+  // The scripted conversation replaces the mic while it runs, then hands back.
+  const demo = useDemoMode({ addPartnerTurn, onStart: stopListening, onEnd: startListening });
+  const { isActive: demoActive, userSpoke: demoUserSpoke, fallbackReplies: demoFallbackReplies } = demo;
 
-  const [transcript, setTranscript] = useState<Turn[]>([]);
   const [replies, setReplies] = useState<string[]>([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Refs mirror state so event handlers always see the latest values.
-  const transcriptRef = useRef<Turn[]>([]);
+  const turnsRef = useRef<Turn[]>([]);
   const repliesRef = useRef<string[]>([]);
   const speakingRef = useRef(false);
   const replyAbort = useRef<AbortController | null>(null);
-  const seenPartnerTurns = useRef(0);
-  const turnCounter = useRef(0);
+  const seenTurns = useRef(0);
   const transcriptEnd = useRef<HTMLDivElement>(null);
-
-  const appendTurns = useCallback((turns: Omit<Turn, 'id'>[]) => {
-    const withIds = turns.map((t) => ({ ...t, id: `${t.speaker}-${++turnCounter.current}` }));
-    transcriptRef.current = [...transcriptRef.current, ...withIds];
-    setTranscript(transcriptRef.current);
-  }, []);
 
   const showReplies = useCallback((next: string[]) => {
     repliesRef.current = next;
@@ -128,7 +106,7 @@ export default function App() {
     setLoadingReplies(true);
     log({ type: 'replies_requested' });
     try {
-      const next = await fetchReplies(transcriptRef.current, controller.signal);
+      const next = await fetchReplies(turnsRef.current, controller.signal);
       if (controller.signal.aborted) return;
       showReplies(next);
       log({ type: 'replies_shown', count: next.length });
@@ -137,47 +115,56 @@ export default function App() {
       if (controller.signal.aborted) return;
       const message = err instanceof Error ? err.message : "Couldn't get replies";
       log({ type: 'replies_failed', message });
-      setNotice(message);
+      const scripted = demoFallbackReplies();
+      if (scripted) {
+        // Demo must not stall: fall back to the script's own replies.
+        showReplies(scripted);
+        log({ type: 'replies_shown', count: scripted.length });
+        console.warn('[cheshire] demo: reply server failed, using scripted replies:', message);
+        setNotice('Reply server unavailable, showing scripted replies');
+      } else {
+        setNotice(message);
+      }
     } finally {
       if (replyAbort.current === controller) {
         replyAbort.current = null;
         setLoadingReplies(false);
       }
     }
-  }, [log, showReplies]);
+  }, [demoFallbackReplies, log, showReplies]);
 
-  // New partner turns from the listener → add to transcript, ask for replies.
+  // New partner turns from the listener → ask for replies. (User turns are ones we added ourselves.)
   useEffect(() => {
-    const turns = listener.turns;
-    if (turns.length < seenPartnerTurns.current) seenPartnerTurns.current = 0; // listener was reset
-    const fresh = turns
-      .slice(seenPartnerTurns.current)
-      .map((t) => t.text.trim())
-      .filter(Boolean);
-    seenPartnerTurns.current = turns.length;
+    turnsRef.current = turns;
+    if (turns.length < seenTurns.current) seenTurns.current = 0; // listener was reset
+    const fresh = turns.slice(seenTurns.current).filter((t) => t.speaker === 'partner');
+    seenTurns.current = turns.length;
     if (!fresh.length) return;
 
-    appendTurns(fresh.map((text) => ({ speaker: 'partner' as const, text })));
-    for (const text of fresh) log({ type: 'partner_turn', text });
+    for (const t of fresh) log({ type: 'partner_turn', text: t.text });
     void requestReplies();
-  }, [listener.turns, appendTurns, log, requestReplies]);
+  }, [turns, log, requestReplies]);
 
   const choose = useCallback(
     async (text: string) => {
       speakingRef.current = true;
       setSpeaking(true);
       log({ type: 'spoken', text });
-      appendTurns([{ speaker: 'user', text }]);
+      addUserTurn(text);
       showReplies([]);
+      // Mute the mic while we talk, or it transcribes our own voice as a partner turn.
+      stopListening();
       try {
-        const mode = await speak(text, (fallback) => log({ type: 'voice_started', fallback }));
+        const mode = await speakWithFallback(text, (fallback) => log({ type: 'voice_started', fallback }));
         setNotice(mode === 'fallback' ? 'Voice server unavailable, used browser voice' : null);
       } finally {
         speakingRef.current = false;
         setSpeaking(false);
+        if (demoActive()) demoUserSpoke();
+        else startListening();
       }
     },
-    [appendTurns, log, showReplies],
+    [addUserTurn, demoActive, demoUserSpoke, log, showReplies, startListening, stopListening],
   );
 
   // Blink / head-tilt choice from the selection layer.
@@ -197,7 +184,16 @@ export default function App() {
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [transcript, listener.interim]);
+  }, [turns, listener.interim]);
+
+  // During the demo the mic is off on purpose, so its problems don't matter.
+  const micProblem = demo.state.status === 'running'
+    ? null
+    : !listener.supported
+    ? 'Speech recognition needs Chrome'
+    : listener.error
+      ? `Microphone: ${listener.error}`
+      : null;
 
   const status = speaking
     ? 'Speaking…'
@@ -205,9 +201,11 @@ export default function App() {
       ? 'Thinking of replies…'
       : replies.length
         ? 'Blink or tilt to choose'
-        : listener.listening === false
-          ? 'Microphone off'
-          : 'Listening…';
+        : demo.state.status === 'running'
+          ? 'Listening (demo)…'
+          : !listener.listening
+            ? 'Microphone off'
+            : 'Listening…';
 
   return (
     <div className="app">
@@ -215,8 +213,16 @@ export default function App() {
         <h1 className="brand">
           Cheshire<span className="brand-dot" aria-hidden>●</span>
         </h1>
-        <div className={`status ${speaking ? 'status-speaking' : ''}`} role="status" aria-live="polite">
-          {status}
+        <div className="header-right">
+          {demo.state.status === 'running' && (
+            <span className="demo-chip" title="Press P to skip to the next line">
+              Demo {demo.state.step + 1} / {demo.state.total}
+            </span>
+          )}
+          {demo.state.status === 'done' && <span className="demo-chip">Demo finished · P to replay</span>}
+          <div className={`status ${speaking ? 'status-speaking' : ''}`} role="status" aria-live="polite">
+            {status}
+          </div>
         </div>
       </header>
 
@@ -226,10 +232,15 @@ export default function App() {
             <h2>Conversation</h2>
           </header>
           <div className="transcript-scroll">
-            {transcript.length === 0 && !listener.interim && (
-              <p className="empty">Waiting for someone to speak…</p>
+            {turns.length === 0 && !listener.interim && (
+              <p className="empty">
+                Waiting for someone to speak…
+                <span className="empty-hint">
+                  Press <kbd>P</kbd> for a demo conversation
+                </span>
+              </p>
             )}
-            {transcript.map((turn) => (
+            {turns.map((turn) => (
               <div key={turn.id} className={`bubble bubble-${turn.speaker}`}>
                 <span className="bubble-who">{turn.speaker === 'partner' ? 'Them' : 'You'}</span>
                 {turn.text}
@@ -242,9 +253,9 @@ export default function App() {
 
         <section className="panel center" aria-label="Reply options">
           <ReplyTiles replies={replies} loading={loadingReplies} />
-          {notice && (
+          {(notice ?? micProblem) && (
             <p className="notice" role="alert">
-              {notice}
+              {notice ?? micProblem}
             </p>
           )}
         </section>

@@ -18,3 +18,13 @@ export interface Turn {
 export interface SpeakRequest {
   text: string;
 }
+
+/** POST /api/replies body: the conversation so far, oldest first. */
+export interface RepliesRequest {
+  history: { speaker: Speaker; text: string }[];
+}
+
+/** POST /api/replies response: up to 3 full replies the user can pick from. */
+export interface RepliesResponse {
+  replies: string[];
+}

@@ -13,9 +13,9 @@ export function stopSpeaking() {
 /**
  * POST /api/speak and play the result in the user's voice. Plays as the stream
  * arrives (MediaSource) where supported, otherwise after the full download.
- * Resolves when playback ends.
+ * Resolves when playback ends. `onStart` fires once, when sound actually begins.
  */
-export async function speak(text: string): Promise<void> {
+export async function speak(text: string, onStart?: () => void): Promise<void> {
   stopSpeaking();
   const res = await fetch("/api/speak", {
     method: "POST",
@@ -29,6 +29,12 @@ export async function speak(text: string): Promise<void> {
 
   const audio = new Audio();
   current = audio;
+  let started = false;
+  audio.onplaying = () => {
+    if (started) return;
+    started = true;
+    onStart?.();
+  };
   const ended = new Promise<void>((resolve, reject) => {
     audio.onended = () => resolve();
     audio.onerror = () => reject(new Error("audio playback failed"));

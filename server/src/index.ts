@@ -1,6 +1,7 @@
 import path from "node:path";
 import dotenv from "dotenv";
 import express from "express";
+import { repliesRouter } from "./replies";
 import { speakRouter } from "./speak";
 
 // .env lives at the repo root
@@ -18,7 +19,8 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/speak", speakRouter);
-// Mount other routes here, e.g. app.use("/api/replies", repliesRouter);
+app.use("/api/replies", repliesRouter);
+// Mount other routes here.
 
 const port = Number(process.env.PORT) || 3001;
 app.listen(port, () => {
