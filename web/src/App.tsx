@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RepliesRequest, RepliesResponse, Turn } from '../../shared/types';
 import { useListener } from './listener/useListener';
-import { speak } from './lib/speak';
+import { prefetchSpeech, speak } from './lib/speak';
 import { useDemoMode } from './demo/useDemoMode';
 import { DEMO_PROFILE } from './demo/profile';
 import { ReplyTiles } from './tiles/ReplyTiles';
@@ -117,6 +117,8 @@ export default function App() {
       const next = await fetchReplies(turnsRef.current, controller.signal);
       if (controller.signal.aborted) return;
       showReplies(next);
+      // Voice all three in the background so the pick plays with no network wait (~3x ElevenLabs characters).
+      prefetchSpeech(next);
       log({ type: 'replies_shown', count: next.length });
       setNotice(null);
     } catch (err) {
@@ -127,6 +129,7 @@ export default function App() {
       if (scripted) {
         // Demo must not stall: fall back to the script's own replies.
         showReplies(scripted);
+        prefetchSpeech(scripted);
         log({ type: 'replies_shown', count: scripted.length });
         console.warn('[cheshire] demo: reply server failed, using scripted replies:', message);
         setNotice('Reply server unavailable, showing scripted replies');
