@@ -27,7 +27,7 @@ We wanted conversation to feel like conversation again: fast enough to keep up, 
 2. **Suggest.** When the partner finishes a phrase, the last 10 turns go to Claude Opus 5.5, which returns three replies written as the user, in the first person:
    - Each reply is under 15 words, so it's quick to read and quick to say.
    - The three replies have to contradict each other, not just be worded differently. A yes/no question or an offer gets accept, decline and something else. An open question gets answers that go in different directions, at least one of them less positive. The user always has a real choice.
-   - The engine never invents facts about the user. It only uses what was said in the conversation or what's in the user's profile.
+   - The engine is instructed never to invent facts about the user, only to use what was said in the conversation or what's in the user's profile.
    - We run Claude at low effort with a strict JSON schema to keep replies fast. On our eval of 20 scripted conversations, all 20 returned valid reply sets, with a median latency of 1.94 s.
 3. **Choose.** MediaPipe's face landmarker runs in the browser on the webcam feed:
    - Tilting your head left or right (past 15° for 300 ms) moves the highlight between the three replies.
