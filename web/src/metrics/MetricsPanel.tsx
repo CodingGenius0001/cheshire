@@ -15,7 +15,8 @@ function describe(e: MetricEvent): string {
     case 'replies_failed':
       return `Replies failed: ${clip(e.message)}`;
     case 'selection':
-      return `${e.gesture === 'choose' ? 'Blink' : 'Tilt'} ${e.gesture} → #${e.index + 1}`;
+      if (e.gesture === 'nod') return 'Nod: show replies';
+      return `${e.gesture === 'choose' ? 'Blink choose' : `Tilt ${e.gesture}`} → #${e.index + 1}`;
     case 'key':
       return `Key ${e.key === ' ' ? 'Space' : e.key}`;
     case 'spoken':
@@ -47,7 +48,7 @@ export function MetricsPanel({ summary, onReset }: Props) {
 
   const stages = [
     { label: 'Replies ready', ms: medianReplyMs, cls: 'stage-replies' },
-    { label: 'User chooses', ms: medianSelectMs, cls: 'stage-select' },
+    { label: 'User chooses (incl. nod)', ms: medianSelectMs, cls: 'stage-select' },
     { label: 'Voice starts', ms: medianVoiceMs, cls: 'stage-voice' },
   ];
   const hasStages = stages.some((s) => s.ms);

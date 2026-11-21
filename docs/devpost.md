@@ -28,12 +28,13 @@ We wanted conversation to feel like conversation again: fast enough to keep up, 
    - The engine is instructed never to invent facts about the user, only to use what was said in the conversation or what's in the user's profile.
    - We run Claude at low effort with a strict JSON schema to keep replies fast. On our eval of 20 scripted conversations, all 20 returned valid reply sets, with a median latency of 1.94 s.
 3. **Choose.** MediaPipe's face landmarker runs in the browser on the webcam feed:
+   - The replies wait face down, like cards from the Queen's deck, until the user nods to say they want to answer. That way an ordinary glance or blink never sends anything, and the user decides whether to reply at all.
    - Tilting your head left or right (past 15° for 300 ms) moves the highlight between the three replies.
    - Holding a blink for 400 ms speaks the highlighted reply. A normal blink is too short to trigger it, so the user can blink naturally while reading.
    - Carers can also click a tile with a mouse or touch.
 4. **Speak.** The chosen reply is spoken through ElevenLabs' low-latency Flash model, in a clone of the user's voice when one is set up and a natural stock voice otherwise. Our demo uses a stock voice: ElevenLabs' voice cloning needs a paid plan, and we built this on the free one. Audio for all three options starts loading the moment they appear, so the one the user picks usually plays immediately. If it isn't ready yet, it streams in and starts before synthesis finishes. If the voice service is unreachable, Cheshire falls back to the browser's built-in voice, so the user is never left silent. The mic pauses while Cheshire speaks so it doesn't transcribe itself.
 
-A live metrics panel shows keystroke savings, replies per minute, and how long each stage takes: partner stops → replies ready → user chooses → voice starts.
+A live metrics panel shows keystroke savings, replies per minute, and how long each stage takes: partner stops → replies ready → user chooses (including the nod) → voice starts.
 
 The interface is built for low vision:
 - Reply text is about 31 px.
@@ -43,7 +44,7 @@ The interface is built for low vision:
 
 ## The result: keystroke savings
 
-We measure **keystroke savings rate (KSR) = 1 − inputs ÷ characters spoken**, where every head tilt, blink or key press counts as one input. Typing letter by letter is roughly one input per character, a KSR near 0%. On Cheshire, one blink speaks a whole sentence.
+We measure **keystroke savings rate (KSR) = 1 − inputs ÷ characters spoken**, where every nod, head tilt, blink or key press counts as one input. Typing letter by letter is roughly one input per character, a KSR near 0%. On Cheshire, a nod and a blink speak a whole sentence.
 
 > **Live session KSR: _[XX]%_** across _[N]_ replies. _(placeholder: fill in from the metrics panel)_
 
@@ -51,11 +52,11 @@ For reference, our demo conversation's replies are 28 to 60 characters long, ave
 
 | Inputs per reply | KSR (average reply) |
 | --- | --- |
-| 1 (blink on the first suggestion) | 97.8% |
-| 2 (one tilt + blink) | 95.5% |
-| 3 (two tilts + blink) | 93.3% |
+| 2 (nod + blink on the first suggestion) | 95.5% |
+| 3 (nod + one tilt + blink) | 93.3% |
+| 4 (nod + two tilts + blink) | 91.1% |
 
-So even in the worst case, picking the third suggestion takes 3 inputs instead of about 45.
+So even in the worst case, picking the third suggestion takes 4 inputs instead of about 45.
 
 ## Ethics
 
