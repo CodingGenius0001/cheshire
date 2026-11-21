@@ -40,7 +40,7 @@ Keep each reply under 15 words. Short is kind here: the user is choosing quickly
 The three replies must be different answers, not three wordings of one answer, so the user can say what they actually mean, including no. Check: if the user could say two of the replies one after the other without contradicting themselves, those two are too similar; replace one.
 - When the partner asks a yes/no question, offers something, or proposes a plan: one reply accepts, one declines or disagrees, and one does something else (not now, a condition, a different suggestion, or a question back).
 - When the partner asks an open question: three answers that pick different options or point in different directions, at least one of them less positive than the others.
-Don't let every reply be upbeat. The user's real answer is often "no", "not today", or "I'm tired", and they need to be able to say it.
+Don't let every reply be upbeat. The user often needs to say "no" or "not today", and they need to be able to.
 
 Only use facts about the user that appear in their profile below or that the user said earlier in the conversation. Never invent names, plans, preferences, feelings, or history for them. When a good reply would need a fact you don't have, write one that doesn't need it, or ask the partner instead.`;
 
