@@ -3,7 +3,6 @@ BEFORE SUBMITTING (delete this block):
 - [ ] Replace the KSR placeholder with the number from a live session (metrics panel, right column).
 - [ ] Add the demo video link.
 - [ ] Optional: add a sourced stat on AAC speaking rates to "The problem" (don't publish one without a source).
-- [ ] If App.tsx starts sending a user profile to /api/replies, the "Suggest" step can say so outright.
 - [ ] If App.tsx starts calling prefetchSpeech(), add to "Speak": audio for all three options is loaded in advance, so the pick plays with no network wait.
 -->
 

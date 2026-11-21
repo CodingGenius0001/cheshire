@@ -3,6 +3,7 @@ import type { RepliesRequest, RepliesResponse, Turn } from '../../shared/types';
 import { useListener } from './listener/useListener';
 import { speak } from './lib/speak';
 import { useDemoMode } from './demo/useDemoMode';
+import { DEMO_PROFILE } from './demo/profile';
 import { ReplyTiles } from './tiles/ReplyTiles';
 import { MetricsPanel } from './metrics/MetricsPanel';
 import { useMetrics } from './metrics/useMetrics';
@@ -16,7 +17,8 @@ import './styles/app.css';
  *  speak(text, onStart)    (Jash, web/src/lib/speak.ts) → streams POST /api/speak and resolves when playback ends.
  *  <ReplyTiles>   (Vivek)  → props { replies: string[]; loading?: boolean }
  *  "cheshire:select"       → CustomEvent on `window`, detail { type: 'choose'; index: number; text?: string }
- *  POST /api/replies       → RepliesRequest → RepliesResponse (shared/types.ts, server/src/replies.ts)
+ *  POST /api/replies       → RepliesRequest + optional `profile` → RepliesResponse (shared/types.ts,
+ *                            server/src/replies.ts, CodingGenius0001). We send the demo persona as `profile`.
  *  Demo mode (P key)       → web/src/demo: feeds scripted partner lines through addPartnerTurn.
  */
 
@@ -26,8 +28,14 @@ interface SelectDetail {
   text?: string;
 }
 
+/** The reply engine also accepts `profile`: facts about the user it may use (see server/src/replies.ts). */
+type RepliesRequestWithProfile = RepliesRequest & { profile?: Record<string, unknown> };
+
 async function fetchReplies(history: Turn[], signal: AbortSignal): Promise<string[]> {
-  const body: RepliesRequest = { history: history.map(({ speaker, text }) => ({ speaker, text })) };
+  const body: RepliesRequestWithProfile = {
+    history: history.map(({ speaker, text }) => ({ speaker, text })),
+    profile: DEMO_PROFILE,
+  };
   const res = await fetch('/api/replies', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
