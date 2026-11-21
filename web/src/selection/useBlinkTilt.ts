@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
-import { GestureDetector, rollFromMatrix, type GestureState, type SelectionEvent } from './gestureDetector';
+import {
+  GestureDetector,
+  pitchFromMatrix,
+  rollFromMatrix,
+  type GestureState,
+  type SelectionEvent,
+} from './gestureDetector';
 import { FACE_LANDMARKER_MODEL_URL, SELECTION_TUNING, WASM_BASE_URL, type SelectionTuning } from './tuning';
 
 export type { SelectionEvent } from './gestureDetector';
@@ -8,7 +14,8 @@ export { SELECTION_TUNING } from './tuning';
 
 /**
  * Window event fired for every selection, so other parts of the app can listen without importing this hook.
- * App.tsx acts on { type: 'choose', index, text }; prev/next carry the newly highlighted index.
+ * App.tsx acts on { type: 'choose', index, text }; prev/next carry the newly highlighted index;
+ * 'nod' means the user wants to answer (with requireNod it reveals the replies).
  */
 export const SELECTION_EVENT_NAME = 'cheshire:select';
 export type SelectionEventDetail = {
@@ -29,6 +36,7 @@ export interface BlinkTiltDebug extends GestureState {
   eyeBlinkLeftPeak: number;
   eyeBlinkRightPeak: number;
   rollDeg: number;
+  pitchDeg: number;
   fps: number;
   /** Top blendshapes this frame, highest first. */
   topBlendshapes: { name: string; score: number }[];
@@ -40,7 +48,12 @@ export interface UseBlinkTiltOptions {
    * blink chooses the highlighted one. The highlight resets to 0 when the list changes.
    */
   replies?: string[];
-  /** Called for every choose/prev/next. Also dispatched as a "cheshire:select" window event. */
+  /**
+   * Replies stay hidden until the user nods. While hidden, tilt and blink do nothing;
+   * after a choose they hide again. Default false (replies always live).
+   */
+  requireNod?: boolean;
+  /** Called for every choose/prev/next/nod. Also dispatched as a "cheshire:select" window event. */
   onSelect?: (detail: SelectionEventDetail) => void;
   /** Set false to release the camera and stop detection. Default true. */
   enabled?: boolean;
@@ -56,6 +69,12 @@ export interface UseBlinkTiltResult {
   lastEvent: SelectionEventDetail | null;
   /** Index of the highlighted reply, or null when there are no replies. Render this as the focus ring. */
   highlighted: number | null;
+  /** With requireNod: whether the user has nodded and the replies should be shown. Always true otherwise. */
+  revealed: boolean;
+  /** Show the replies as if the user nodded (mouse/touch fallback). Dispatches a 'nod' event. */
+  reveal: () => void;
+  /** Hide the replies again (e.g. after a click choice). */
+  hide: () => void;
   /** Toggled with the D key. */
   debugVisible: boolean;
   setDebugVisible: (v: boolean) => void;
@@ -65,7 +84,15 @@ export interface UseBlinkTiltResult {
 }
 
 export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltResult {
-  const { replies, onSelect, enabled = true, tuning: tuningOverride } = options;
+  const { replies, onSelect, enabled = true, requireNod = false, tuning: tuningOverride } = options;
+  const requireNodRef = useRef(requireNod);
+  requireNodRef.current = requireNod;
+  const revealedRef = useRef(false);
+  const [revealed, setRevealedState] = useState(false);
+  const setRevealed = (v: boolean) => {
+    revealedRef.current = v;
+    setRevealedState(v);
+  };
 
   const repliesRef = useRef<string[]>([]);
   repliesRef.current = replies ?? [];
@@ -95,6 +122,12 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
   const debugVisibleRef = useRef(debugVisible);
   debugVisibleRef.current = debugVisible;
   const detectorRef = useRef(new GestureDetector(tuning));
+
+  const emit = (detail: SelectionEventDetail) => {
+    setLastEvent(detail);
+    onSelectRef.current?.(detail);
+    window.dispatchEvent(new CustomEvent<SelectionEventDetail>(SELECTION_EVENT_NAME, { detail }));
+  };
 
   // D toggles the debug panel (ignored while typing in a field).
   useEffect(() => {
@@ -137,6 +170,13 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
     const PEAK_DECAY_PER_SEC = 0.15;
 
     const fire = (type: SelectionEvent, at: number) => {
+      const gated = requireNodRef.current;
+      if (gated && type !== 'nod' && !revealedRef.current) return; // replies hidden: wait for a nod
+      if (gated && type === 'nod') {
+        highlightedRef.current = 0;
+        setHighlighted(0);
+        setRevealed(true);
+      }
       const list = repliesRef.current;
       let index: number | undefined;
       if (list.length > 0) {
@@ -149,9 +189,8 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
         index = i;
       }
       const detail: SelectionEventDetail = { type, index, text: index !== undefined ? list[index] : undefined, at };
-      setLastEvent(detail);
-      onSelectRef.current?.(detail);
-      window.dispatchEvent(new CustomEvent<SelectionEventDetail>(SELECTION_EVENT_NAME, { detail }));
+      if (gated && type === 'choose' && index !== undefined) setRevealed(false);
+      emit(detail);
     };
 
     const loop = () => {
@@ -170,14 +209,16 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
       let blinkL: number | null = null;
       let blinkR: number | null = null;
       let roll: number | null = null;
+      let pitch: number | null = null;
       if (shapes && matrix) {
         // Blendshape names are from the subject's point of view, same as we want.
         blinkL = shapes.find((c) => c.categoryName === 'eyeBlinkLeft')?.score ?? 0;
         blinkR = shapes.find((c) => c.categoryName === 'eyeBlinkRight')?.score ?? 0;
         roll = rollFromMatrix(matrix.data) * T.ROLL_SIGN;
+        pitch = pitchFromMatrix(matrix.data);
       }
 
-      const event = detector.update({ t: now, blinkLeft: blinkL, blinkRight: blinkR, rollDeg: roll });
+      const event = detector.update({ t: now, blinkLeft: blinkL, blinkRight: blinkR, rollDeg: roll, pitchDeg: pitch });
       if (event) fire(event, now);
 
       const decay = ((now - lastFrameT) / 1000) * PEAK_DECAY_PER_SEC;
@@ -201,6 +242,7 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
           eyeBlinkLeftPeak: peakL,
           eyeBlinkRightPeak: peakR,
           rollDeg: roll ?? 0,
+          pitchDeg: pitch ?? 0,
           fps,
           topBlendshapes: shapes
             ? [...shapes]
@@ -266,11 +308,23 @@ export function useBlinkTilt(options: UseBlinkTiltOptions = {}): UseBlinkTiltRes
     };
   }, [enabled]);
 
+  const reveal = () => {
+    highlightedRef.current = 0;
+    setHighlighted(0);
+    setRevealed(true);
+    const list = repliesRef.current;
+    emit({ type: 'nod', index: list.length ? 0 : undefined, text: list[0], at: performance.now() });
+  };
+  const hide = () => setRevealed(false);
+
   return {
     status,
     error,
     stream,
     lastEvent,
+    revealed: requireNod ? revealed : true,
+    reveal,
+    hide,
     highlighted: (replies?.length ?? 0) > 0 ? Math.min(highlighted, replies!.length - 1) : null,
     debugVisible,
     setDebugVisible,

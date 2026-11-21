@@ -1,6 +1,6 @@
 import { SELECTION_TUNING, type SelectionTuning } from './tuning';
 
-export type SelectionEvent = 'choose' | 'prev' | 'next';
+export type SelectionEvent = 'choose' | 'prev' | 'next' | 'nod';
 
 export interface GestureFrame {
   /** Timestamp in ms (performance.now()). */
@@ -10,6 +10,8 @@ export interface GestureFrame {
   blinkRight: number | null;
   /** Head roll in degrees, already multiplied by ROLL_SIGN. Negative = user's left. */
   rollDeg: number | null;
+  /** Head pitch in degrees (any sign convention). Omit to disable nod detection. */
+  pitchDeg?: number | null;
 }
 
 export interface GestureState {
@@ -22,6 +24,10 @@ export interface GestureState {
   tiltProgress: number;
   /** ms of cooldown left. */
   cooldownRemaining: number;
+  /** Pitch relative to the resting angle, in degrees. */
+  pitchOffset: number;
+  /** True while the head is out on a possible nod. */
+  nodding: boolean;
 }
 
 /**
@@ -32,6 +38,8 @@ export interface GestureState {
  *   (eyes must open again before another choose).
  * - Tilt: |roll| over threshold for TILT_HOLD_MS → "prev"/"next", once per tilt
  *   (head must return within TILT_RELEASE_DEG before another).
+ * - Nod: pitch leaves its resting angle by NOD_PITCH_DEG and comes back within NOD_MAX_MS → "nod".
+ *   Slower moves (looking down at something) just move the resting angle.
  * - COOLDOWN_MS after any event, nothing fires.
  */
 export class GestureDetector {
@@ -42,6 +50,9 @@ export class GestureDetector {
   private tiltStart: number | null = null;
   private tiltLatched = false;
 
+  private pitchBase: number | null = null;
+  private nodStart: number | null = null;
+
   private cooldownUntil = 0;
   private last: GestureState = {
     faceVisible: false,
@@ -50,6 +61,8 @@ export class GestureDetector {
     tiltDirection: null,
     tiltProgress: 0,
     cooldownRemaining: 0,
+    pitchOffset: 0,
+    nodding: false,
   };
 
   constructor(private tuning: SelectionTuning = SELECTION_TUNING) {}
@@ -68,6 +81,8 @@ export class GestureDetector {
     this.tiltDir = null;
     this.tiltStart = null;
     this.tiltLatched = false;
+    this.pitchBase = null;
+    this.nodStart = null;
   }
 
   update(f: GestureFrame): SelectionEvent | null {
@@ -117,12 +132,35 @@ export class GestureDetector {
       if (!this.tiltLatched) this.tiltDir = null;
     }
 
-    // ---- Fire (blink wins if both are ready on the same frame) ----
+    // ---- Nod ----
+    let nodReady = false;
+    let pitchOffset = 0;
+    const pitch = f.pitchDeg ?? null;
+    if (pitch !== null) {
+      if (this.pitchBase === null) this.pitchBase = pitch;
+      pitchOffset = pitch - this.pitchBase;
+      const out = Math.abs(pitchOffset);
+      if (this.nodStart === null) {
+        if (out >= T.NOD_PITCH_DEG && abs < T.TILT_RELEASE_DEG) this.nodStart = f.t;
+        else this.pitchBase += T.NOD_BASELINE_ALPHA * (pitch - this.pitchBase);
+      } else if (f.t - this.nodStart > T.NOD_MAX_MS) {
+        // Too slow for a nod: the user moved and stayed. Treat the new angle as rest.
+        this.pitchBase = pitch;
+        this.nodStart = null;
+      } else if (out <= T.NOD_RETURN_DEG) {
+        nodReady = f.t - this.nodStart >= T.NOD_MIN_MS;
+        this.nodStart = null;
+      }
+    }
+
+    // ---- Fire (blink, then nod, then tilt, if several are ready on the same frame) ----
     let event: SelectionEvent | null = null;
     if (!inCooldown) {
       if (blinkReady) {
         event = 'choose';
         this.blinkLatched = true;
+      } else if (nodReady) {
+        event = 'nod';
       } else if (tiltReady) {
         event = this.tiltDir;
         this.tiltLatched = true;
@@ -142,6 +180,8 @@ export class GestureDetector {
       tiltDirection: abs >= T.TILT_THRESHOLD_DEG ? dir : null,
       tiltProgress: event === 'prev' || event === 'next' ? 1 : tiltProgress,
       cooldownRemaining: Math.max(0, this.cooldownUntil - f.t),
+      pitchOffset,
+      nodding: this.nodStart !== null,
     };
     return event;
   }
@@ -154,6 +194,8 @@ export class GestureDetector {
       tiltDirection: null,
       tiltProgress: 0,
       cooldownRemaining: Math.max(0, this.cooldownUntil - t),
+      pitchOffset: 0,
+      nodding: false,
     };
   }
 }
@@ -165,6 +207,14 @@ export class GestureDetector {
  */
 export function rollFromMatrix(data: ArrayLike<number>): number {
   return (Math.atan2(data[1], data[0]) * 180) / Math.PI;
+}
+
+/**
+ * Pitch (rotation about the camera's X axis, nodding) in degrees from the same matrix:
+ * R21 = data[6], R22 = data[10] column-major. Nod detection ignores the sign.
+ */
+export function pitchFromMatrix(data: ArrayLike<number>): number {
+  return (Math.atan2(data[6], data[10]) * 180) / Math.PI;
 }
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));

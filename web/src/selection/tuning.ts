@@ -22,6 +22,21 @@ export const SELECTION_TUNING = {
    */
   ROLL_SIGN: 1 as 1 | -1,
 
+  /**
+   * Nod = head pitch moves this far from its resting angle and comes back. Fires "nod",
+   * which reveals the reply cards. Either direction counts (down-up or up-down), so the
+   * pitch sign never needs calibrating.
+   */
+  NOD_PITCH_DEG: 10,
+  /** The head counts as "back" once it's within this many degrees of rest again. */
+  NOD_RETURN_DEG: 4,
+  /** Out and back must happen within this window; slower moves are just looking around. */
+  NOD_MAX_MS: 900,
+  /** Ignore out-and-back flickers shorter than this (tracking jitter). */
+  NOD_MIN_MS: 80,
+  /** How fast the resting pitch follows slow posture changes (per frame, 0..1). */
+  NOD_BASELINE_ALPHA: 0.05,
+
   /** No events at all for this long after any event fires. */
   COOLDOWN_MS: 600,
 

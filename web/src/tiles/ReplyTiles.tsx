@@ -28,19 +28,21 @@ function CardPip({ index, corner }: { index: number; corner: 'top' | 'bottom' })
 }
 
 /**
- * The three reply options. Tilt your head to move the highlight, hold a blink to speak it.
+ * The three reply options. They stay face down until the user nods to say they want to answer;
+ * then tilt moves the highlight and a held blink speaks it, and the cards go face down again.
  * Speaking is handled by App.tsx, which listens for the "cheshire:select" choose event
  * that useBlinkTilt (or a click here) dispatches.
  */
 export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
-  // Camera runs the whole time so it's warm when replies arrive; events with no replies on screen are ignored by App.
-  const blinkTilt = useBlinkTilt({ replies });
-  const { highlighted, status, error } = blinkTilt;
+  // Camera runs the whole time so it's warm when replies arrive; tilt/blink only act once the user nods.
+  const blinkTilt = useBlinkTilt({ replies, requireNod: true });
+  const { highlighted, status, error, revealed, reveal, hide } = blinkTilt;
 
   // Mouse / touch fallback for carers and for demos when lighting is bad.
   const chooseByClick = (index: number) => {
     const detail: SelectionEventDetail = { type: 'choose', index, text: replies[index], at: performance.now() };
     window.dispatchEvent(new CustomEvent<SelectionEventDetail>(SELECTION_EVENT_NAME, { detail }));
+    hide();
   };
 
   return (
@@ -50,7 +52,9 @@ export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
         <CameraChip status={status} error={error} />
       </header>
 
-      {loading ? (
+      {!revealed ? (
+        <NodPrompt ready={!loading && replies.length > 0} loading={loading} onReveal={reveal} />
+      ) : loading ? (
         <ol className="tile-list" aria-busy="true" aria-label="Loading replies">
           {/* Face-down cards while the deck is shuffled. */}
           {Array.from({ length: SKELETON_COUNT }, (_, i) => (
@@ -92,7 +96,7 @@ export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
         </ol>
       )}
 
-      {replies.length > 0 && !loading && (
+      {revealed && replies.length > 0 && !loading && (
         <p className="tiles-help" aria-live="polite">
           <span className="sr-only">
             Option {highlighted !== null ? highlighted + 1 : 1} of {replies.length}:{' '}
@@ -103,6 +107,29 @@ export function ReplyTiles({ replies, loading = false }: ReplyTilesProps) {
       )}
 
       <BlinkTiltDebugPanel {...blinkTilt} />
+    </div>
+  );
+}
+
+/** Face-down deck shown until the user nods. The button is the click fallback for the nod. */
+function NodPrompt({ ready, loading, onReveal }: { ready: boolean; loading: boolean; onReveal: () => void }) {
+  const status = ready ? 'Your replies are ready.' : loading ? 'Thinking of replies…' : 'Listening…';
+  return (
+    <div className="nod-prompt">
+      <div className="nod-deck" aria-hidden>
+        <span className="tile card-back nod-card nod-card-1" />
+        <span className="tile card-back nod-card nod-card-2" />
+        <span className="tile card-back nod-card nod-card-3">
+          <span className="card-back-mark">♥ ♠ ♦ ♣</span>
+        </span>
+      </div>
+      <p className="nod-title">Nod when you want to answer</p>
+      <p className="nod-status" aria-live="polite">
+        {status}
+      </p>
+      <button type="button" className="nod-button" onClick={onReveal}>
+        Show replies
+      </button>
     </div>
   );
 }
