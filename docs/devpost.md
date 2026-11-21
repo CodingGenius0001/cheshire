@@ -3,7 +3,6 @@ BEFORE SUBMITTING (delete this block):
 - [ ] Replace the KSR placeholder with the number from a live session (metrics panel, right column).
 - [ ] Add the demo video link.
 - [ ] Optional: add a sourced stat on AAC speaking rates to "The problem" (don't publish one without a source).
-- [ ] If App.tsx starts calling prefetchSpeech(), add to "Speak": audio for all three options is loaded in advance, so the pick plays with no network wait.
 -->
 
 # Cheshire
@@ -32,7 +31,7 @@ We wanted conversation to feel like conversation again: fast enough to keep up, 
    - Tilting your head left or right (past 15° for 300 ms) moves the highlight between the three replies.
    - Holding a blink for 400 ms speaks the highlighted reply. A normal blink is too short to trigger it, so the user can blink naturally while reading.
    - Carers can also click a tile with a mouse or touch.
-4. **Speak.** The chosen reply is spoken through ElevenLabs' low-latency Flash model, in a clone of the user's voice when one is set up and a natural stock voice otherwise. Our demo uses a stock voice: ElevenLabs' voice cloning needs a paid plan, and we built this on the free one. Audio plays as it streams in, so speech starts before synthesis finishes. If the voice service is unreachable, Cheshire falls back to the browser's built-in voice, so the user is never left silent. The mic pauses while Cheshire speaks so it doesn't transcribe itself.
+4. **Speak.** The chosen reply is spoken through ElevenLabs' low-latency Flash model, in a clone of the user's voice when one is set up and a natural stock voice otherwise. Our demo uses a stock voice: ElevenLabs' voice cloning needs a paid plan, and we built this on the free one. Audio for all three options starts loading the moment they appear, so the one the user picks usually plays immediately. If it isn't ready yet, it streams in and starts before synthesis finishes. If the voice service is unreachable, Cheshire falls back to the browser's built-in voice, so the user is never left silent. The mic pauses while Cheshire speaks so it doesn't transcribe itself.
 
 A live metrics panel shows keystroke savings, replies per minute, and how long each stage takes: partner stops → replies ready → user chooses → voice starts.
 
@@ -64,8 +63,8 @@ So even in the worst case, picking the third suggestion takes 3 inputs instead o
 
 **Nothing is stored, and the camera stays on your device.**
 - *Stays on the device:* the webcam feed. Face tracking runs entirely in the browser, and the only thing the app uses is the resulting tilt or blink event. No video is sent anywhere.
-- *Never stored:* the transcript exists only in the browser's memory for the current session and is gone on reload. There's no database, and our server logs only timings and errors, never what was said. The one thing the server holds is the audio of the last 200 spoken replies, in memory only (never on disk), so a repeated line plays instantly. It's cleared whenever the server restarts.
-- *Sent out to work, and we're upfront about it:* Chrome's speech recognition sends microphone audio to Google to transcribe it, the last 10 turns go to Anthropic's API to generate replies, and the chosen reply's text goes to ElevenLabs to synthesize speech. API keys stay on our server, never in the browser.
+- *Never stored:* the transcript exists only in the browser's memory for the current session and is gone on reload. There's no database, and our server logs only timings and errors, never what was said. The one thing the server holds is the audio of the last 200 reply options it voiced, picked or not, in memory only (never on disk), so a repeated line plays instantly. It's cleared whenever the server restarts.
+- *Sent out to work, and we're upfront about it:* Chrome's speech recognition sends microphone audio to Google to transcribe it, the last 10 turns go to Anthropic's API to generate replies, and the text of all three reply options goes to ElevenLabs, so the chosen one can play immediately. API keys stay on our server, never in the browser.
 
 **The user stays in control.** Nothing is spoken until the user deliberately chooses it, with a held blink, not a passing one. The suggestions are options, not words put in someone's mouth, and the engine is instructed never to invent facts, feelings or plans for the user.
 
