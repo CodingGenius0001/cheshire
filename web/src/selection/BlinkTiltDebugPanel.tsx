@@ -82,6 +82,15 @@ export function BlinkTiltDebugPanel(props: UseBlinkTiltResult) {
         <span>next (right)</span>
       </div>
       <Bar label={`tilt hold (${T.TILT_HOLD_MS}ms)`} value={debug?.tiltProgress ?? 0} accent="#7ee787" />
+      <Bar
+        label={`nod (±${T.NOD_PITCH_DEG}° out and back)${debug?.nodding ? ' · nodding…' : ''}`}
+        value={Math.min(1, Math.abs(debug?.pitchOffset ?? 0) / (T.NOD_PITCH_DEG * 2))}
+        threshold={0.5}
+      />
+      <div style={{ ...S.label, ...S.muted }}>
+        <span>pitch from rest</span>
+        <span>{(debug?.pitchOffset ?? 0).toFixed(1)}°</span>
+      </div>
 
       {debug && debug.topBlendshapes.length > 0 && (
         <details style={{ marginTop: 6 }}>

@@ -299,3 +299,85 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Nod prompt: a face-down deck until the user nods to answer. */
+
+.nod-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.nod-deck {
+  position: relative;
+  width: min(100%, 420px);
+  height: 132px;
+  margin-bottom: 8px;
+}
+
+.nod-card {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  animation: none;
+}
+.nod-card-1 {
+  transform: rotate(-5deg) translate(-14px, 6px);
+}
+.nod-card-2 {
+  transform: rotate(3deg) translate(12px, 2px);
+}
+.nod-card-3 {
+  animation: nod-bob 2.4s ease-in-out infinite;
+}
+
+/* The top card nods, showing the gesture. */
+@keyframes nod-bob {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0) rotateX(0);
+  }
+  70% {
+    transform: perspective(700px) translateY(6px) rotateX(16deg);
+  }
+  80% {
+    transform: translateY(0) rotateX(0);
+  }
+}
+
+.nod-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nod-status {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+
+.nod-button {
+  margin-top: 4px;
+  padding: 8px 18px;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--panel-raised);
+  border: 2px solid var(--border-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.nod-button:hover {
+  border-color: var(--accent);
+}

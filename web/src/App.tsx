@@ -93,6 +93,8 @@ export default function App() {
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Mirrors VivekKommu's tiles: cards turn face up on a nod and face down again after a choice.
+  const [cardsFaceUp, setCardsFaceUp] = useState(false);
 
   // Refs mirror state so event handlers always see the latest values.
   const turnsRef = useRef<Turn[]>([]);
@@ -184,7 +186,9 @@ export default function App() {
   useEffect(() => {
     const onSelect = (e: Event) => {
       const detail = (e as CustomEvent<SelectDetail>).detail ?? {};
+      if (detail.type === 'nod') setCardsFaceUp(true);
       if (detail.type !== 'choose') return;
+      if (detail.index !== undefined) setCardsFaceUp(false);
       const text = detail.text ?? (detail.index !== undefined ? repliesRef.current[detail.index] : undefined);
       if (!text || speakingRef.current) return;
       void choose(text);
@@ -213,7 +217,9 @@ export default function App() {
     : loadingReplies
       ? 'Thinking of replies…'
       : replies.length
-        ? 'Blink or tilt to choose'
+        ? cardsFaceUp
+          ? 'Blink or tilt to choose'
+          : 'Nod to answer'
         : demo.state.status === 'running'
           ? 'Listening (demo)…'
           : !listener.listening

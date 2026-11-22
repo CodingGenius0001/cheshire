@@ -1,6 +1,7 @@
 import path from "node:path";
 import dotenv from "dotenv";
 import express from "express";
+import { requirePasscode } from "./passcode";
 import { repliesRouter } from "./replies";
 import { speakRouter } from "./speak";
 
@@ -18,6 +19,8 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+// Hosted demo: /api needs the team passcode when CHESHIRE_PASSCODE is set (see passcode.ts).
+app.use("/api", requirePasscode);
 app.use("/api/speak", speakRouter);
 app.use("/api/replies", repliesRouter);
 // Mount other routes here.
