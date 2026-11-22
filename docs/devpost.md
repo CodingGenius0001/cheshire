@@ -2,6 +2,7 @@
 BEFORE SUBMITTING (delete this block):
 - [ ] Replace the KSR placeholder with the number from a live session (metrics panel, right column).
 - [ ] Add the demo video link.
+- [ ] Upload the 4 screenshots in docs/theme-preview/ to Devpost and swap in those image URLs. The repo is private, so the relative paths below only work on GitHub.
 - [ ] Optional: add a sourced stat on AAC speaking rates to "The problem" (don't publish one without a source).
 -->
 
@@ -12,6 +13,22 @@ BEFORE SUBMITTING (delete this block):
 Cheshire listens to the person you're talking to, suggests three full replies, and lets you pick one with a head tilt and a blink. It then speaks your choice out loud in your own voice, cloned with ElevenLabs, or in a natural stock voice if you haven't recorded one.
 
 🎥 Demo video: _[link]_
+
+## Screenshots
+
+The Cheshire Cat in the header acts out what the app is doing.
+
+![Listening: the Cheshire Cat waits on its branch under the moon](theme-preview/1-idle.png)
+*Listening: the cat waits on its branch while the partner talks.*
+
+![Thinking: the cat has vanished, leaving only its grin, while three face-down cards wait](theme-preview/2-thinking.png)
+*Thinking: the cat fades until only its grin is left, while the replies are dealt face down.*
+
+![Choosing: three replies shown as playing cards, the first highlighted](theme-preview/3-choosing.png)
+*Choosing: after a nod the cards turn over. Tilt to move between them, and hold a blink to speak one.*
+
+![Speaking: the grin glows rose and the reply appears in the conversation](theme-preview/4-speaking.png)
+*Speaking: the grin turns rose as the reply is spoken, and the live metrics update (demo mode).*
 
 ## The problem
 
