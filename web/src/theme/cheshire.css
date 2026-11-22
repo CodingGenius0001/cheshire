@@ -74,7 +74,7 @@ body {
   position: relative;
   min-height: 166px;
   align-items: flex-end;
-  padding: 0 372px 22px 4px;
+  padding: 0 350px 22px 4px;
 }
 
 .app-header > * {
@@ -86,11 +86,12 @@ body {
 .app-header > .cheshire-branch {
   position: absolute;
   z-index: 0;
-  right: 0;
-  bottom: -4px;
-  width: min(64%, 900px);
+  /* Runs past the page margin to the screen edge, as if from a trunk off-screen. */
+  right: -24px;
+  bottom: -14px;
+  width: min(66%, 924px);
   height: 48px;
-  color: rgb(243 233 198 / 0.5);
+  color: rgb(243 233 198 / 0.78);
 }
 
 .brand {
@@ -140,9 +141,9 @@ body {
 .cheshire {
   position: absolute;
   right: 10px;
-  top: -22px;
-  width: 330px;
-  height: 190px;
+  top: -6px;
+  width: 310px;
+  height: 179px;
   pointer-events: none;
 }
 
@@ -240,7 +241,7 @@ body {
 
 /* The Queen's rose hedge along the foot of the page, below the panels. */
 .app {
-  padding-bottom: 40px;
+  padding-bottom: 50px;
 }
 
 .app::after {
@@ -249,11 +250,11 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 58px;
+  height: 50px;
   z-index: -1;
   pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 58'%3E%3Cpath d='M0 58V30q12-18 28-8q8-16 24-10q12-14 26 2q14-12 28 0q10-14 26-4q16-10 28 6V58Z' fill='%23143f33'/%3E%3Cpath d='M0 58V40q16-10 34-2q14-10 30 0q18-8 32 2q16-8 34 0q16-6 30 4V58Z' fill='%231b5242'/%3E%3Cg fill='%23d0487f'%3E%3Ccircle cx='22' cy='27' r='3.2'/%3E%3Ccircle cx='71' cy='18' r='3.6'/%3E%3Ccircle cx='118' cy='22' r='3'/%3E%3Ccircle cx='146' cy='33' r='3.4'/%3E%3C/g%3E%3C/svg%3E")
-    0 100% / 160px 58px repeat-x;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 58'%3E%3Cpath d='M0 58V30q12-18 28-8q8-16 24-10q12-14 26 2q14-12 28 0q10-14 26-4q16-6 28 20V58Z' fill='%23143f33'/%3E%3Cpath d='M0 58V40q16-10 34-2q14-10 30 0q18-8 32 2q16-8 34 0q16-6 30 0V58Z' fill='%231b5242'/%3E%3Cg fill='%23d0487f'%3E%3Ccircle cx='22' cy='27' r='3.2'/%3E%3Ccircle cx='71' cy='18' r='3.6'/%3E%3Ccircle cx='118' cy='22' r='3'/%3E%3Ccircle cx='146' cy='33' r='3.4'/%3E%3C/g%3E%3C/svg%3E")
+    0 100% / 138px 50px repeat-x;
 }
 
 .panel-header h2 {
@@ -352,7 +353,7 @@ body {
   .cheshire {
     width: 240px;
     height: 138px;
-    top: -26px;
+    top: -4px;
   }
 }
 
@@ -379,6 +380,10 @@ body {
     top: -8px;
   }
   .cheshire-moon {
+    display: none;
+  }
+  /* On phones the cat's own grin is the only one; the wordmark's would touch its tail. */
+  .brand-grin {
     display: none;
   }
   .app-header > .cheshire-branch {

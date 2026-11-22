@@ -26,29 +26,44 @@ export function Grin({ className }: { className?: string }) {
   );
 }
 
-/** The limb the cat lies along, engraved in moonlight; it runs under the header like a garden wall. */
+/*
+ * The limb the cat lies along, engraved in moonlight like Tenniel's line work:
+ * an outlined, lightly filled limb that tapers to a twig on the left, with hatching
+ * on its shadow side. Geometry is computed once from a centre line and a thickness.
+ */
+const LIMB = (() => {
+  const centre = (x: number) => 24 + 5 * Math.sin(x / 130) + 5 * (x / 900);
+  // Thickens toward the cat, then tapers to a tip under its tail instead of a square cut.
+  const half = (x: number) => (0.8 + 6.4 * Math.pow(x / 900, 0.8)) * Math.min(1, Math.max(0.12, (918 - x) / 70));
+  const xs = Array.from({ length: 48 }, (_, i) => 24 + i * 19);
+  const pt = (x: number, y: number) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+  const top = xs.map((x) => pt(x, centre(x) - half(x)));
+  const bottom = xs.slice().reverse().map((x) => pt(x, centre(x) + half(x)));
+  const outline = `M${top.join(' L')} L${bottom.join(' L')} Z`;
+  const hatches = Array.from({ length: 96 }, (_, i) => 60 + i * 8.8)
+    .map((x) => `M${pt(x, centre(x) + half(x) * 0.15)} L${pt(x - 3.5, centre(x) + half(x) * 0.95)}`)
+    .join(' ');
+  return { outline, hatches };
+})();
+
 export function Branch() {
   return (
-    <svg className="cheshire-branch" viewBox="0 0 900 48" preserveAspectRatio="xMaxYMid meet" aria-hidden="true" focusable="false">
-      <path
-        d="M900 25 C760 23 660 31 560 27 C460 23 360 15 250 19 C170 22 100 25 34 17 C100 29 172 28 252 25 C362 21 462 31 562 34 C662 37 762 32 900 38 Z"
-        fill="currentColor"
-      />
-      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <path d="M612 31 q-22 -16 -46 -22" />
-        <path d="M468 26 q-16 12 -40 18" />
-        <path d="M330 20 q-14 -12 -38 -15" />
+    <svg className="cheshire-branch" viewBox="0 0 924 48" preserveAspectRatio="xMaxYMid meet" aria-hidden="true" focusable="false">
+      <path d={LIMB.outline} fill="currentColor" fillOpacity="0.16" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <path d={LIMB.hatches} fill="none" stroke="currentColor" strokeWidth="0.9" strokeOpacity="0.7" />
+      <g fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <path d="M612 29 q-22 -16 -46 -22" />
+        <path d="M468 27 q-16 12 -40 16" />
+        <path d="M330 22 q-14 -12 -38 -15" />
         <path d="M196 24 q-14 10 -30 14" />
-        <path d="M760 29 q18 -14 40 -18" />
-        <path d="M700 31 q-10 6 -26 8 M520 30 q-8 5 -20 6 M380 19 q-8 -4 -18 -4" strokeWidth="1.2" />
+        <path d="M770 30 q18 -14 40 -18" />
       </g>
-      <g fill="currentColor">
-        <path d="M566 9 q10 -9 20 1 q-10 8 -20 -1z" />
-        <path d="M428 44 q8 -10 19 -3 q-8 9 -19 3z" />
-        <path d="M292 5 q9 -8 19 0 q-10 8 -19 0z" />
+      <g fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1">
+        <path d="M566 7 q10 -9 20 1 q-10 8 -20 -1z" />
+        <path d="M428 43 q8 -10 19 -3 q-8 9 -19 3z" />
+        <path d="M292 7 q9 -8 19 0 q-10 8 -19 0z" />
         <path d="M166 38 q7 -9 17 -4 q-7 8 -17 4z" />
-        <path d="M800 11 q10 -8 19 1 q-10 7 -19 -1z" />
-        <path d="M60 15 q6 -8 15 -3 q-6 7 -15 3z" />
+        <path d="M810 12 q10 -8 19 1 q-10 7 -19 -1z" />
       </g>
     </svg>
   );
