@@ -29,8 +29,14 @@
   color: var(--bg);
 }
 
+/* The sky lives on the root element and the body stays transparent,
+   so the stars and hedge (z-index -1) are not painted over by the body's own background. */
+:root {
+  background: linear-gradient(180deg, #0c1d29 0%, #08141c 38%, #050e14 100%) fixed;
+}
+
 body {
-  background: linear-gradient(180deg, #0c1d29 0%, #08141c 38%, #050e14 100%);
+  background: transparent;
 }
 
 /* Stars: three offset tilings so the sky doesn't visibly repeat. They only show around the panels. */
@@ -66,9 +72,25 @@ body {
 
 .app-header {
   position: relative;
-  min-height: 112px;
+  min-height: 166px;
   align-items: flex-end;
-  padding: 0 236px 8px 4px;
+  padding: 0 372px 22px 4px;
+}
+
+.app-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The branch runs along the foot of the header; the cat lies on its right end. */
+.app-header > .cheshire-branch {
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: -4px;
+  width: min(64%, 900px);
+  height: 48px;
+  color: rgb(243 233 198 / 0.5);
 }
 
 .brand {
@@ -117,17 +139,17 @@ body {
 
 .cheshire {
   position: absolute;
-  right: 6px;
-  top: -6px;
-  width: 196px;
-  height: 140px;
+  right: 10px;
+  top: -22px;
+  width: 330px;
+  height: 190px;
   pointer-events: none;
 }
 
 .cheshire-moon {
   position: absolute;
-  left: -58px;
-  top: 2px;
+  left: -64px;
+  top: 52px;
   width: 54px;
   height: 54px;
   border-radius: 50%;
@@ -148,9 +170,9 @@ body {
 
 .cheshire-grin {
   position: absolute;
-  left: 29.5%;
-  top: 68%;
-  width: 27%;
+  left: 25%;
+  top: 80%;
+  width: 30%;
   color: var(--moon);
   opacity: 0;
   transform: translate(-50%, -50%);
@@ -168,7 +190,21 @@ body {
 
 .app[data-mood='thinking'] .cheshire-grin {
   opacity: 1;
+  width: 38%;
   animation: grin-float 3.4s ease-in-out infinite;
+}
+
+/* One grin at a time: the wordmark's grin steps back while the big one floats. */
+.brand-grin {
+  transition: opacity 0.6s ease-out;
+}
+.app[data-mood='thinking'] .brand-grin {
+  opacity: 0.4;
+}
+
+/* Choosing: nothing may compete with the cards. */
+.app[data-mood='choosing'] .cheshire-cat {
+  opacity: 0.55;
 }
 
 .app[data-mood='speaking'] .cheshire-cat {
@@ -191,12 +227,33 @@ body {
   }
 }
 
-/* ---------- Panels ---------- */
+/* ---------- Panels: an engraved double rule ---------- */
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  box-shadow: 0 18px 42px rgb(0 0 0 / 0.38);
+  box-shadow:
+    inset 0 0 0 5px var(--panel),
+    inset 0 0 0 6px rgb(243 233 198 / 0.14),
+    0 18px 42px rgb(0 0 0 / 0.38);
+}
+
+/* The Queen's rose hedge along the foot of the page, below the panels. */
+.app {
+  padding-bottom: 40px;
+}
+
+.app::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 58px;
+  z-index: -1;
+  pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 58'%3E%3Cpath d='M0 58V30q12-18 28-8q8-16 24-10q12-14 26 2q14-12 28 0q10-14 26-4q16-10 28 6V58Z' fill='%23143f33'/%3E%3Cpath d='M0 58V40q16-10 34-2q14-10 30 0q18-8 32 2q16-8 34 0q16-6 30 4V58Z' fill='%231b5242'/%3E%3Cg fill='%23d0487f'%3E%3Ccircle cx='22' cy='27' r='3.2'/%3E%3Ccircle cx='71' cy='18' r='3.6'/%3E%3Ccircle cx='118' cy='22' r='3'/%3E%3Ccircle cx='146' cy='33' r='3.4'/%3E%3C/g%3E%3C/svg%3E")
+    0 100% / 160px 58px repeat-x;
 }
 
 .panel-header h2 {
@@ -276,20 +333,55 @@ body {
     --partner: #0b1820;
     --user: #4a0f2a;
   }
-  body {
+  :root {
     background: #000;
   }
-  .app::before {
+  body {
+    background: transparent;
+  }
+  .app::before,
+  .app::after {
     display: none;
   }
 }
 
 @media (max-width: 1100px) {
   .app-header {
-    padding-right: 180px;
+    padding-right: 260px;
   }
   .cheshire {
-    width: 154px;
-    height: 110px;
+    width: 240px;
+    height: 138px;
+    top: -26px;
+  }
+}
+
+/* Phones and narrow windows: the header wraps and the cat sits smaller in its corner. */
+@media (max-width: 700px) {
+  .app-header {
+    flex-wrap: wrap;
+    min-height: 96px;
+    padding-right: 150px;
+  }
+  .brand {
+    font-size: 2.5rem;
+  }
+  .header-right {
+    flex-wrap: wrap;
+  }
+  .status {
+    font-size: 1rem;
+  }
+  .cheshire {
+    width: 150px;
+    height: 86px;
+    right: 0;
+    top: -8px;
+  }
+  .cheshire-moon {
+    display: none;
+  }
+  .app-header > .cheshire-branch {
+    width: 100%;
   }
 }

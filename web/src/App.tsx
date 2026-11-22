@@ -8,7 +8,7 @@ import { ReplyTiles } from './tiles/ReplyTiles';
 import { MetricsPanel } from './metrics/MetricsPanel';
 import { useMetrics } from './metrics/useMetrics';
 import './styles/app.css';
-import { CheshireCat, Grin, type Mood } from './theme/CheshireCat';
+import { Branch, CheshireCat, Grin, type Mood } from './theme/CheshireCat';
 import './theme/cheshire.css';
 
 /*
@@ -249,6 +249,7 @@ export default function App() {
             {status}
           </div>
         </div>
+        <Branch />
         <CheshireCat />
       </header>
 
